@@ -1,5 +1,6 @@
 import { getDb, cycleLengthInDays } from '../database/initDb';
 import { addDaysToKey, toLocalDateKey } from '../utils/dateUtils';
+import { resolveCurrentCycle } from '../utils/smartBudgetCalculator';
 import { Moneda, getConversionFactor } from '../utils/currencyUtils';
 
 export type TipoCiclo = 'Diario' | 'Semanal' | 'Mensual';
@@ -31,6 +32,31 @@ export const budgetService = {
       [userId]
     );
     return budget || null;
+  },
+
+  /**
+   * F06: renovación automática. Si el ciclo terminó, avanza a ciclos contiguos
+   * (mismo monto y tipo) hasta cubrir hoy y lo persiste.
+   */
+  ensureCurrentCycle: async (userId: number): Promise<Presupuesto | null> => {
+    const budget = await budgetService.getBudgetByUserId(userId);
+    if (!budget) return null;
+
+    const fechaFinActual =
+      budget.fecha_fin ?? budgetService.calculateCycleEnd(budget.fecha_inicio, budget.tipo_ciclo);
+    const ciclo = resolveCurrentCycle(
+      { fechaInicio: budget.fecha_inicio, fechaFin: fechaFinActual },
+      toLocalDateKey()
+    );
+    if (!ciclo.renovado) return { ...budget, fecha_fin: fechaFinActual };
+
+    const db = await getDb();
+    await db.runAsync('UPDATE Presupuesto SET fecha_inicio = ?, fecha_fin = ? WHERE id = ?', [
+      ciclo.fechaInicio,
+      ciclo.fechaFin,
+      budget.id,
+    ]);
+    return { ...budget, fecha_inicio: ciclo.fechaInicio, fecha_fin: ciclo.fechaFin };
   },
 
   // Onboarding (F01): primer presupuesto del usuario, el ciclo inicia hoy

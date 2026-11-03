@@ -446,7 +446,7 @@ export default function BudgetSetupScreen({ navigation, route }: any) {
       <ConfirmDialog
         visible={showCycleConfirm}
         title="¿Reiniciar tu ciclo?"
-        message={`Tu nuevo ciclo ${tipoCiclo} comenzará hoy. Los gastos que registraste en días anteriores dejarán de contar para tu presupuesto (no se borrarán de tu historial).`}
+        message={`Tu nuevo ciclo ${tipoCiclo} comenzará hoy. Los gastos que registraste en días anteriores dejarán de contar para tu presupuesto (no se borrarán de tu historial). Los gastos de hoy sí se incluyen en el nuevo ciclo.`}
         confirmLabel="Reiniciar ciclo"
         onConfirm={performSave}
         onCancel={() => setShowCycleConfirm(false)}

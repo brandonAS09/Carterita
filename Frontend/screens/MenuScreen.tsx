@@ -15,6 +15,8 @@ import {
   Mic,
   Camera,
   TrendingUp,
+  TrendingDown,
+  AlertCircle,
   LogOut,
   PlusCircle,
   PackageOpen,
@@ -22,7 +24,7 @@ import {
 } from 'lucide-react-native';
 import { COLORS, SIZES } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
-import { budgetService, Presupuesto } from '../src/services/budgetService';
+import { smartBudgetService, TodayBudgetSummary } from '../src/services/smartBudgetService';
 import { transactionService, Transaccion } from '../src/services/transactionService';
 import { formatAmount } from '../src/utils/currencyUtils';
 import { CategoryIcon } from '../src/theme/categoryIcons';
@@ -111,13 +113,14 @@ const skeletonStyles = StyleSheet.create({
 // ─────────────────────────────────────────────
 // Componente principal: Dashboard
 // ─────────────────────────────────────────────
-interface DashboardData {
-  presupuesto: Presupuesto;
-  gastadoHoy: number;
-  limiteDiario: number;
-  saldoDisponible: number;
+interface DashboardData extends TodayBudgetSummary {
   transacciones: Transaccion[];
 }
+
+const formatShortDate = (dateKey: string) => {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' });
+};
 
 export default function MenuScreen({ navigation }: any) {
   const [userName, setUserName] = useState('');
@@ -147,26 +150,18 @@ export default function MenuScreen({ navigation }: any) {
       setUserId(session.id);
       setUserName(session.nombre);
 
-      // 2. Obtener presupuesto configurado
-      const presupuesto = await budgetService.getBudgetByUserId(session.id);
-      if (!presupuesto) {
+      // 2. Presupuesto + Recálculo Inteligente (F06), con renovación automática del ciclo
+      const summary = await smartBudgetService.getTodaySummary(session.id);
+      if (!summary) {
         // Si por alguna razón no tiene presupuesto, volver a configuración
         navigation.replace('BudgetSetup');
         return;
       }
 
-      // 3. Calcular límite diario y saldo actual (BudgetService Calculator - Sprint1_Specs)
-      const limiteDiario = budgetService.calculateDailyLimit(
-        presupuesto.monto_base,
-        presupuesto.tipo_ciclo
-      );
-      const gastadoHoy = await transactionService.getTodayTotal(session.id);
-      const saldoDisponible = limiteDiario - gastadoHoy;
-
-      // 4. Obtener transacciones de hoy
+      // 3. Obtener transacciones de hoy
       const transacciones = await transactionService.getTodayTransactions(session.id);
 
-      setData({ presupuesto, gastadoHoy, limiteDiario, saldoDisponible, transacciones });
+      setData({ ...summary, transacciones });
       hasLoadedOnce.current = true;
     } catch (error) {
       console.error('Error cargando el dashboard:', error);
@@ -198,7 +193,7 @@ export default function MenuScreen({ navigation }: any) {
   };
 
   const getProgresoWidth = (gastado: number, limite: number): string => {
-    if (limite <= 0) return '0%';
+    if (limite <= 0) return gastado > 0 ? '100%' : '0%';
     const pct = Math.min((gastado / limite) * 100, 100);
     return `${pct}%`;
   };
@@ -268,11 +263,11 @@ export default function MenuScreen({ navigation }: any) {
             <Text
               style={[
                 styles.balanceAmount,
-                { color: getSaldoColor(data.saldoDisponible), fontVariant: ['tabular-nums'] },
+                { color: getSaldoColor(data.disponibleHoy), fontVariant: ['tabular-nums'] },
               ]}
             >
-              {data.saldoDisponible < 0 ? '-' : ''}
-              {formatCurrency(data.saldoDisponible, moneda)}
+              {data.disponibleHoy < 0 ? '-' : ''}
+              {formatCurrency(data.disponibleHoy, moneda)}
             </Text>
 
             {/* Barra de progreso de gasto del día */}
@@ -281,9 +276,11 @@ export default function MenuScreen({ navigation }: any) {
                 style={[
                   styles.progressBarFill,
                   {
-                    width: getProgresoWidth(data.gastadoHoy, data.limiteDiario),
+                    width: getProgresoWidth(data.gastadoHoy, data.limiteHoy),
                     backgroundColor:
-                      data.gastadoHoy >= data.limiteDiario ? COLORS.error : COLORS.secondary,
+                      data.gastadoHoy > 0 && data.gastadoHoy >= data.limiteHoy
+                        ? COLORS.error
+                        : COLORS.secondary,
                   },
                 ]}
               />
@@ -297,10 +294,45 @@ export default function MenuScreen({ navigation }: any) {
               </Text>{' '}
               de{' '}
               <Text style={{ color: COLORS.text, fontWeight: '600' }}>
-                {formatCurrency(data.limiteDiario, moneda)}
+                {formatCurrency(data.limiteHoy, moneda)}
+              </Text>
+            </Text>
+
+            {/* Contexto del ciclo (F06) */}
+            <Text style={styles.cycleText}>
+              {data.diasRestantes === 1 ? 'Queda 1 día' : `Quedan ${data.diasRestantes} días`} · Saldo del
+              ciclo{' '}
+              <Text style={{ color: data.saldoRestanteCiclo < 0 ? COLORS.error : COLORS.text, fontWeight: '600' }}>
+                {data.saldoRestanteCiclo < 0 ? '-' : ''}
+                {formatCurrency(data.saldoRestanteCiclo, moneda)}
               </Text>{' '}
               ({data.presupuesto.tipo_ciclo.toLowerCase()})
             </Text>
+
+            {/* Mensajes de ajuste (F06 Escenarios 1, 2 y 3) */}
+            {data.cicloAgotado ? (
+              <View style={[styles.adjustBanner, styles.adjustBannerNegative]}>
+                <AlertCircle color={COLORS.error} size={16} />
+                <Text style={[styles.adjustText, { color: COLORS.error }]}>
+                  Agotaste el presupuesto de este ciclo. Se renovará el {formatShortDate(data.fechaRenovacion)}.
+                </Text>
+              </View>
+            ) : data.ajuste === 'alza' ? (
+              <View style={styles.adjustBanner}>
+                <TrendingUp color={COLORS.secondary} size={16} />
+                <Text style={styles.adjustText}>
+                  ¡Ahorraste en días anteriores! Tu límite de hoy subió a {formatCurrency(data.limiteHoy, moneda)}
+                </Text>
+              </View>
+            ) : data.ajuste === 'baja' ? (
+              <View style={styles.adjustBanner}>
+                <TrendingDown color={COLORS.textSecondary} size={16} />
+                <Text style={[styles.adjustText, { color: COLORS.textSecondary }]}>
+                  Gastaste de más en días anteriores. Tu límite de hoy se ajustó a{' '}
+                  {formatCurrency(data.limiteHoy, moneda)}
+                </Text>
+              </View>
+            ) : null}
           </View>
         )}
 
@@ -455,6 +487,29 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 12,
     marginTop: SIZES.spacing.xs,
+  },
+  cycleText: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  adjustBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SIZES.spacing.xs,
+    marginTop: SIZES.spacing.sm,
+    padding: SIZES.spacing.xs,
+    borderRadius: SIZES.radius.button,
+    backgroundColor: 'rgba(47, 163, 106, 0.12)',
+  },
+  adjustBannerNegative: {
+    backgroundColor: 'rgba(207, 102, 121, 0.12)',
+  },
+  adjustText: {
+    color: COLORS.secondary,
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
   },
   // ── Secciones ──
   sectionTitle: {
