@@ -17,18 +17,25 @@ import {
   Calendar,
   Sparkles,
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
-  CircleDollarSign
+  ChevronLeft,
+  CircleDollarSign,
+  RefreshCw,
 } from 'lucide-react-native';
 import { COLORS, SIZES } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
-import { budgetService, TipoCiclo } from '../src/services/budgetService';
-
-const MONEDAS = [
-  { code: 'MXN', label: 'MXN ($)', symbol: '$' },
-  { code: 'USD', label: 'USD ($)', symbol: '$' },
-  { code: 'EUR', label: 'EUR (€)', symbol: '€' },
-];
+import { budgetService, Presupuesto, TipoCiclo } from '../src/services/budgetService';
+import { transactionService } from '../src/services/transactionService';
+import {
+  MONEDAS,
+  Moneda,
+  convertAmount,
+  formatAmount,
+  getCurrencySymbol,
+  round2,
+} from '../src/utils/currencyUtils';
+import ConfirmDialog from '../src/components/ConfirmDialog';
 
 const CICLOS: { tipo: TipoCiclo; label: string; desc: string }[] = [
   { tipo: 'Diario', label: 'Diario', desc: 'Renovación cada día' },
@@ -36,15 +43,37 @@ const CICLOS: { tipo: TipoCiclo; label: string; desc: string }[] = [
   { tipo: 'Mensual', label: 'Mensual', desc: 'Cada 30 días' },
 ];
 
-export default function BudgetSetupScreen({ navigation }: any) {
+const SAVE_ERROR = 'Ocurrió un error al guardar tu configuración. Inténtalo de nuevo.';
+
+const parseNumber = (text: string) => parseFloat(text.replace(/,/g, ''));
+const toInputText = (n: number) => round2(n).toString();
+
+/**
+ * F01 (Onboarding) y F01.1 (Edición de Presupuesto).
+ * route.params.mode: 'onboarding' (por defecto) | 'edit'
+ */
+export default function BudgetSetupScreen({ navigation, route }: any) {
+  const isEditMode = route?.params?.mode === 'edit';
+
   const [userId, setUserId] = useState<number | null>(null);
   const [userName, setUserName] = useState<string>('');
-  const [moneda, setMoneda] = useState<string>('MXN');
+  const [original, setOriginal] = useState<Presupuesto | null>(null);
+  const [cycleSpent, setCycleSpent] = useState(0);
+
+  // Formulario
+  const [moneda, setMoneda] = useState<Moneda>('MXN');
   const [tipoCiclo, setTipoCiclo] = useState<TipoCiclo>('Mensual');
   const [montoText, setMontoText] = useState<string>('');
+  const [montoEditedByUser, setMontoEditedByUser] = useState(false);
+  const [tasaText, setTasaText] = useState<string>('');
+
+  // Interacción
   const [touched, setTouched] = useState<boolean>(false);
+  const [touchedTasa, setTouchedTasa] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isInitializing, setIsInitializing] = useState<boolean>(isEditMode);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showCycleConfirm, setShowCycleConfirm] = useState(false);
 
   useEffect(() => {
     loadActiveUser();
@@ -53,60 +82,142 @@ export default function BudgetSetupScreen({ navigation }: any) {
   const loadActiveUser = async () => {
     try {
       const session = await authService.getActiveSession();
-      if (session) {
-        setUserId(session.id);
-        setUserName(session.nombre);
-
-        // Si ya tenía un presupuesto guardado, lo pre-cargamos
-        const existingBudget = await budgetService.getBudgetByUserId(session.id);
-        if (existingBudget) {
-          setMoneda(existingBudget.moneda);
-          setTipoCiclo(existingBudget.tipo_ciclo);
-          setMontoText(existingBudget.monto_base.toString());
-        }
-      } else {
+      if (!session) {
         navigation.replace('Login');
+        return;
+      }
+      setUserId(session.id);
+      setUserName(session.nombre);
+
+      // Si ya tenía un presupuesto guardado, lo pre-cargamos
+      const existingBudget = await budgetService.getBudgetByUserId(session.id);
+      if (existingBudget) {
+        setOriginal(existingBudget);
+        setMoneda(existingBudget.moneda);
+        setTipoCiclo(existingBudget.tipo_ciclo);
+        setMontoText(toInputText(existingBudget.monto_base));
+        if (existingBudget.tipo_cambio_usd) {
+          setTasaText(existingBudget.tipo_cambio_usd.toString());
+        }
+        if (isEditMode) {
+          setCycleSpent(
+            await transactionService.getCycleTotal(
+              session.id,
+              existingBudget.fecha_inicio,
+              existingBudget.fecha_fin
+            )
+          );
+        }
       }
     } catch {
-      setErrorMessage('No se pudo verificar la sesión.');
+      setErrorMessage('No se pudo cargar tu configuración actual.');
+    } finally {
+      setIsInitializing(false);
     }
   };
 
-  const parsedMonto = parseFloat(montoText.replace(/,/g, ''));
+  // ── Derivados ──
+  const currencyChanged = original !== null && moneda !== original.moneda;
+  const cycleChanged = original !== null && tipoCiclo !== original.tipo_ciclo;
+
+  const parsedTasa = parseNumber(tasaText);
+  const isTasaValid = !isNaN(parsedTasa) && isFinite(parsedTasa) && parsedTasa > 0;
+
+  const parsedMonto = parseNumber(montoText);
   const isMontoValid = !isNaN(parsedMonto) && parsedMonto > 0;
-  const isFormValid = isMontoValid && userId !== null;
 
-  const dailyEstimate = isMontoValid
-    ? budgetService.calculateDailyLimit(parsedMonto, tipoCiclo)
-    : 0;
+  // Conversión en vivo del monto al cambiar de moneda (si el usuario no lo ha escrito a mano)
+  useEffect(() => {
+    if (!original || montoEditedByUser) return;
+    if (moneda === original.moneda) {
+      setMontoText(toInputText(original.monto_base));
+    } else {
+      setMontoText(
+        isTasaValid ? toInputText(convertAmount(original.monto_base, original.moneda, moneda, parsedTasa)) : ''
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moneda, tasaText, original, montoEditedByUser]);
 
-  const currentSymbol = MONEDAS.find((m) => m.code === moneda)?.symbol || '$';
+  const hasChanges =
+    original !== null &&
+    (currencyChanged || cycleChanged || (isMontoValid && round2(parsedMonto) !== round2(original.monto_base)));
 
-  const handleSaveBudget = async () => {
+  const isFormValid =
+    isMontoValid &&
+    userId !== null &&
+    (!currencyChanged || isTasaValid) &&
+    (!isEditMode || hasChanges);
+
+  // Advertencia: nuevo monto menor a lo ya gastado en el ciclo (solo si el ciclo continúa)
+  const cycleSpentInSelectedCurrency =
+    original && currencyChanged
+      ? isTasaValid
+        ? convertAmount(cycleSpent, original.moneda, moneda, parsedTasa)
+        : null
+      : cycleSpent;
+  const showOverspendWarning =
+    isEditMode &&
+    !cycleChanged &&
+    isMontoValid &&
+    cycleSpentInSelectedCurrency !== null &&
+    cycleSpentInSelectedCurrency > 0 &&
+    parsedMonto < cycleSpentInSelectedCurrency;
+
+  const dailyEstimate = isMontoValid ? budgetService.calculateDailyLimit(parsedMonto, tipoCiclo) : 0;
+  const currentSymbol = getCurrencySymbol(moneda);
+
+  // ── Acciones ──
+  const handleSavePress = () => {
+    if (!isFormValid || isLoading) return;
+    if (isEditMode && cycleChanged) {
+      setShowCycleConfirm(true); // Escenario 2: confirmar antes de reiniciar el ciclo
+      return;
+    }
+    performSave();
+  };
+
+  const performSave = async () => {
+    setShowCycleConfirm(false);
     if (!isFormValid || isLoading || !userId) return;
 
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      await budgetService.createOrUpdateBudget(
-        userId,
-        parsedMonto,
-        tipoCiclo,
-        moneda
-      );
+      if (original) {
+        await budgetService.updateBudget(userId, {
+          montoBase: round2(parsedMonto),
+          tipoCiclo,
+          moneda,
+          tipoCambioUsd: currencyChanged ? parsedTasa : undefined,
+        });
+      } else {
+        await budgetService.createBudget(userId, round2(parsedMonto), tipoCiclo, moneda);
+      }
 
-      // Redirigir al Dashboard una vez guardado el presupuesto
-      navigation.replace('Menu');
-    } catch (error: any) {
-      // Caso negativo: Fallo en SQLite / base de datos
-      setErrorMessage(
-        error?.message || 'Ocurrió un error al guardar tu configuración. Inténtalo de nuevo.'
-      );
+      if (isEditMode) {
+        navigation.goBack(); // El Dashboard se refresca solo al recibir foco
+      } else {
+        navigation.replace('Menu');
+      }
+    } catch (error) {
+      console.error('Error al guardar el presupuesto:', error);
+      setErrorMessage(SAVE_ERROR);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // ── Render ──
+  if (isInitializing) {
+    return (
+      <SafeAreaView style={[styles.safeArea, styles.centered]}>
+        <StatusBar style="light" />
+        <ActivityIndicator size="large" color={COLORS.secondary} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -115,23 +226,40 @@ export default function BudgetSetupScreen({ navigation }: any) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardContainer}
       >
+        {/* Navbar (solo modo edición) */}
+        {isEditMode && (
+          <View style={styles.navBar}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.8}
+            >
+              <ChevronLeft color={COLORS.text} size={24} />
+            </TouchableOpacity>
+            <Text style={styles.navTitle}>Editar Presupuesto</Text>
+            <View style={{ width: 40 }} />
+          </View>
+        )}
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.iconCircle}>
-              <CircleDollarSign color={COLORS.secondary} size={36} />
+          {/* Header (solo onboarding) */}
+          {!isEditMode && (
+            <View style={styles.header}>
+              <View style={styles.iconCircle}>
+                <CircleDollarSign color={COLORS.secondary} size={36} />
+              </View>
+              <Text style={styles.welcomeText}>
+                ¡Hola{userName ? `, ${userName}` : ''}! 👋
+              </Text>
+              <Text style={styles.title}>Define tu Presupuesto</Text>
+              <Text style={styles.subtitle}>
+                Carterita calculará automáticamente cuánto puedes gastar cada día sin salirte de tu meta.
+              </Text>
             </View>
-            <Text style={styles.welcomeText}>
-              ¡Hola{userName ? `, ${userName}` : ''}! 👋
-            </Text>
-            <Text style={styles.title}>Define tu Presupuesto</Text>
-            <Text style={styles.subtitle}>
-              Carterita calculará automáticamente cuánto puedes gastar cada día sin salirte de tu meta.
-            </Text>
-          </View>
+          )}
 
           {/* Banner de Error (Caso Negativo) */}
           {errorMessage && (
@@ -145,7 +273,7 @@ export default function BudgetSetupScreen({ navigation }: any) {
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Coins color={COLORS.secondary} size={18} />
-              <Text style={styles.sectionTitle}>1. Moneda Local</Text>
+              <Text style={styles.sectionTitle}>1. Moneda</Text>
             </View>
             <View style={styles.currencyRow}>
               {MONEDAS.map((m) => {
@@ -153,25 +281,55 @@ export default function BudgetSetupScreen({ navigation }: any) {
                 return (
                   <TouchableOpacity
                     key={m.code}
-                    style={[
-                      styles.currencyChip,
-                      isSelected && styles.currencyChipSelected,
-                    ]}
+                    style={[styles.currencyChip, isSelected && styles.currencyChipSelected]}
                     onPress={() => setMoneda(m.code)}
                     activeOpacity={0.8}
                   >
-                    <Text
-                      style={[
-                        styles.currencyChipText,
-                        isSelected && styles.currencyChipTextSelected,
-                      ]}
-                    >
+                    <Text style={[styles.currencyChipText, isSelected && styles.currencyChipTextSelected]}>
                       {m.label}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
+
+            {/* Tipo de cambio (solo si cambia la moneda) */}
+            {currencyChanged && (
+              <View style={styles.rateBlock}>
+                <Text style={styles.rateLabel}>Tipo de cambio</Text>
+                <View
+                  style={[
+                    styles.rateInputContainer,
+                    touchedTasa && !isTasaValid && styles.amountInputError,
+                  ]}
+                >
+                  <Text style={styles.rateAffix}>1 USD =</Text>
+                  <TextInput
+                    style={styles.rateInput}
+                    placeholder="0.00"
+                    placeholderTextColor={COLORS.textSecondary}
+                    keyboardType="decimal-pad"
+                    value={tasaText}
+                    onChangeText={(val) => {
+                      setTasaText(val);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
+                    onBlur={() => setTouchedTasa(true)}
+                  />
+                  <Text style={styles.rateAffix}>MXN</Text>
+                </View>
+                {touchedTasa && !isTasaValid ? (
+                  <Text style={styles.fieldErrorText}>Ingresa un tipo de cambio válido mayor a 0.</Text>
+                ) : (
+                  <View style={styles.hintRow}>
+                    <RefreshCw color={COLORS.textSecondary} size={14} />
+                    <Text style={styles.hintText}>
+                      Tu presupuesto, todos tus gastos y tus metas se convertirán a {moneda}.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
           {/* 2. Tipo de Ciclo */}
@@ -186,19 +344,11 @@ export default function BudgetSetupScreen({ navigation }: any) {
                 return (
                   <TouchableOpacity
                     key={c.tipo}
-                    style={[
-                      styles.cycleCard,
-                      isSelected && styles.cycleCardSelected,
-                    ]}
+                    style={[styles.cycleCard, isSelected && styles.cycleCardSelected]}
                     onPress={() => setTipoCiclo(c.tipo)}
                     activeOpacity={0.8}
                   >
-                    <Text
-                      style={[
-                        styles.cycleLabel,
-                        isSelected && styles.cycleLabelSelected,
-                      ]}
-                    >
+                    <Text style={[styles.cycleLabel, isSelected && styles.cycleLabelSelected]}>
                       {c.label}
                     </Text>
                     <Text style={styles.cycleDesc}>{c.desc}</Text>
@@ -206,6 +356,12 @@ export default function BudgetSetupScreen({ navigation }: any) {
                 );
               })}
             </View>
+            {isEditMode && cycleChanged && (
+              <View style={styles.hintRow}>
+                <RefreshCw color={COLORS.textSecondary} size={14} />
+                <Text style={styles.hintText}>Cambiar el tipo de ciclo lo reiniciará a partir de hoy.</Text>
+              </View>
+            )}
           </View>
 
           {/* 3. Monto Base del Presupuesto */}
@@ -226,10 +382,11 @@ export default function BudgetSetupScreen({ navigation }: any) {
                 style={styles.amountInput}
                 placeholder="0.00"
                 placeholderTextColor={COLORS.textSecondary}
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 value={montoText}
                 onChangeText={(val) => {
                   setMontoText(val);
+                  setMontoEditedByUser(true);
                   if (errorMessage) setErrorMessage(null);
                 }}
                 onBlur={() => setTouched(true)}
@@ -238,32 +395,34 @@ export default function BudgetSetupScreen({ navigation }: any) {
             </View>
 
             {touched && !isMontoValid && (
-              <Text style={styles.fieldErrorText}>
-                Ingresa un monto válido mayor a 0.
-              </Text>
+              <Text style={styles.fieldErrorText}>Ingresa un monto válido mayor a 0.</Text>
+            )}
+
+            {/* Escenario 3: advertencia de sobregasto (informa, no bloquea) */}
+            {showOverspendWarning && cycleSpentInSelectedCurrency !== null && (
+              <View style={styles.warningRow}>
+                <AlertTriangle color={COLORS.error} size={16} />
+                <Text style={styles.warningText}>
+                  Ya gastaste {formatAmount(cycleSpentInSelectedCurrency, moneda)} en este ciclo. Tu saldo
+                  quedará en negativo.
+                </Text>
+              </View>
             )}
 
             {/* Vista previa en tiempo real del límite diario */}
             <View style={styles.previewBox}>
               <Text style={styles.previewLabel}>LÍMITE ESTIMADO POR DÍA:</Text>
               <Text style={styles.previewAmount}>
-                {currentSymbol}
-                {dailyEstimate.toLocaleString('es-MX', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{' '}
+                {formatAmount(dailyEstimate, moneda)}{' '}
                 <Text style={styles.previewCurrency}>{moneda}/día</Text>
               </Text>
             </View>
           </View>
 
-          {/* Botón Guardar / Continuar (Criterios: Deshabilitado si incompleto, spinner al guardar) */}
+          {/* Botón Guardar (deshabilitado si inválido o sin cambios; spinner al guardar) */}
           <TouchableOpacity
-            style={[
-              styles.submitButton,
-              !isFormValid && styles.submitButtonDisabled,
-            ]}
-            onPress={handleSaveBudget}
+            style={[styles.submitButton, !isFormValid && styles.submitButtonDisabled]}
+            onPress={handleSavePress}
             disabled={!isFormValid || isLoading}
             activeOpacity={0.8}
           >
@@ -271,23 +430,27 @@ export default function BudgetSetupScreen({ navigation }: any) {
               <ActivityIndicator color={COLORS.background} size="small" />
             ) : (
               <View style={styles.buttonContent}>
-                <Text
-                  style={[
-                    styles.submitButtonText,
-                    !isFormValid && styles.submitButtonTextDisabled,
-                  ]}
-                >
-                  Comenzar con Carterita
+                <Text style={[styles.submitButtonText, !isFormValid && styles.submitButtonTextDisabled]}>
+                  {isEditMode ? 'Guardar cambios' : 'Comenzar con Carterita'}
                 </Text>
-                <ArrowRight
-                  color={!isFormValid ? COLORS.disabledText : COLORS.background}
-                  size={20}
-                />
+                {!isEditMode && (
+                  <ArrowRight color={!isFormValid ? COLORS.disabledText : COLORS.background} size={20} />
+                )}
               </View>
             )}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Escenario 2: confirmación de reinicio de ciclo */}
+      <ConfirmDialog
+        visible={showCycleConfirm}
+        title="¿Reiniciar tu ciclo?"
+        message={`Tu nuevo ciclo ${tipoCiclo} comenzará hoy. Los gastos que registraste en días anteriores dejarán de contar para tu presupuesto (no se borrarán de tu historial).`}
+        confirmLabel="Reiniciar ciclo"
+        onConfirm={performSave}
+        onCancel={() => setShowCycleConfirm(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -297,8 +460,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   keyboardContainer: {
     flex: 1,
+  },
+  // ── Navbar (modo edición) ──
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SIZES.spacing.md,
+    paddingVertical: SIZES.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.primary,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: SIZES.radius.button,
+    backgroundColor: COLORS.tertiary,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  navTitle: {
+    color: COLORS.text,
+    fontSize: SIZES.body1,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   scrollContent: {
     paddingHorizontal: SIZES.spacing.lg,
@@ -401,6 +594,51 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: 'bold',
   },
+  // ── Tipo de cambio ──
+  rateBlock: {
+    marginTop: SIZES.spacing.md,
+  },
+  rateLabel: {
+    color: COLORS.text,
+    fontSize: SIZES.body2,
+    fontWeight: '500',
+    marginBottom: SIZES.spacing.xs,
+  },
+  rateInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderRadius: SIZES.radius.button,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    paddingHorizontal: SIZES.spacing.md,
+    height: 48,
+    gap: SIZES.spacing.xs,
+  },
+  rateAffix: {
+    color: COLORS.textSecondary,
+    fontSize: SIZES.body1,
+    fontWeight: '600',
+  },
+  rateInput: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: SIZES.body1,
+    fontWeight: 'bold',
+    fontVariant: ['tabular-nums'],
+    height: '100%',
+  },
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SIZES.spacing.xs,
+  },
+  hintText: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    flex: 1,
+  },
   cycleGrid: {
     flexDirection: 'row',
     gap: SIZES.spacing.xs,
@@ -472,6 +710,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 6,
     marginLeft: 4,
+  },
+  warningRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: SIZES.spacing.xs,
+  },
+  warningText: {
+    color: COLORS.error,
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 16,
   },
   previewBox: {
     marginTop: SIZES.spacing.md,

@@ -25,6 +25,7 @@ import { COLORS, SIZES } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
 import { budgetService } from '../src/services/budgetService';
 import { transactionService, Categoria } from '../src/services/transactionService';
+import { getCurrencySymbol } from '../src/utils/currencyUtils';
 
 // Mapeo simple de iconos de categoría a emojis visuales (sin dependencias extra)
 const CATEGORIA_EMOJIS: Record<string, string> = {
@@ -71,7 +72,7 @@ export default function AddExpenseScreen({ navigation }: any) {
 
       const budget = await budgetService.getBudgetByUserId(session.id);
       if (budget) {
-        setMonedaSimbolo(budget.moneda === 'EUR' ? '€' : '$');
+        setMonedaSimbolo(getCurrencySymbol(budget.moneda));
       }
 
       const cats = await transactionService.getAllCategories();

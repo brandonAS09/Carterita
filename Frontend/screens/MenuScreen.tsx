@@ -19,11 +19,13 @@ import {
   LogOut,
   PlusCircle,
   PackageOpen,
+  Settings,
 } from 'lucide-react-native';
 import { COLORS, SIZES } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
 import { budgetService, Presupuesto } from '../src/services/budgetService';
 import { transactionService, Transaccion } from '../src/services/transactionService';
+import { formatAmount } from '../src/utils/currencyUtils';
 
 // ─────────────────────────────────────────────
 // Componente auxiliar: Skeleton Loader (Criterio F05 - Escenario 1)
@@ -188,12 +190,7 @@ export default function MenuScreen({ navigation }: any) {
   };
 
   // ── Formateadores ──
-  const formatCurrency = (amount: number, symbol: string = '$') => {
-    return `${symbol}${Math.abs(amount).toLocaleString('es-MX', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  };
+  const formatCurrency = (amount: number, moneda: string) => formatAmount(amount, moneda);
 
   const getSaldoColor = (saldo: number) => {
     if (saldo > 0) return COLORS.secondary;   // verde → positivo (Criterio F05 Escenario 1)
@@ -225,7 +222,7 @@ export default function MenuScreen({ navigation }: any) {
     );
   }
 
-  const monedaSimbolo = data?.presupuesto?.moneda === 'EUR' ? '€' : '$';
+  const moneda = data?.presupuesto?.moneda ?? 'MXN';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -247,9 +244,19 @@ export default function MenuScreen({ navigation }: any) {
             <Text style={styles.saludo}>¡Hola, {userName || 'Usuario'}! 👋</Text>
             <Text style={styles.appTitle}>Carterita</Text>
           </View>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.8}>
-            <LogOut color={COLORS.error} size={22} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            {/* S1.1-06: Edición de presupuesto */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('BudgetSetup', { mode: 'edit' })}
+              style={styles.logoutButton}
+              activeOpacity={0.8}
+            >
+              <Settings color={COLORS.secondary} size={22} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.8}>
+              <LogOut color={COLORS.error} size={22} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── Tarjeta Principal de Saldo (Criterio F05 - Escenario 1) ── */}
@@ -265,7 +272,7 @@ export default function MenuScreen({ navigation }: any) {
               ]}
             >
               {data.saldoDisponible < 0 ? '-' : ''}
-              {formatCurrency(data.saldoDisponible, monedaSimbolo)}
+              {formatCurrency(data.saldoDisponible, moneda)}
             </Text>
 
             {/* Barra de progreso de gasto del día */}
@@ -286,11 +293,11 @@ export default function MenuScreen({ navigation }: any) {
             <Text style={styles.progressText}>
               Gastado hoy:{' '}
               <Text style={{ color: COLORS.text, fontWeight: '600' }}>
-                {formatCurrency(data.gastadoHoy, monedaSimbolo)}
+                {formatCurrency(data.gastadoHoy, moneda)}
               </Text>{' '}
               de{' '}
               <Text style={{ color: COLORS.text, fontWeight: '600' }}>
-                {formatCurrency(data.limiteDiario, monedaSimbolo)}
+                {formatCurrency(data.limiteDiario, moneda)}
               </Text>{' '}
               ({data.presupuesto.tipo_ciclo.toLowerCase()})
             </Text>
@@ -362,7 +369,7 @@ export default function MenuScreen({ navigation }: any) {
                 </Text>
               </View>
               <Text style={[styles.transactionAmount, { fontVariant: ['tabular-nums'] }]}>
-                -{formatCurrency(tx.monto, monedaSimbolo)}
+                -{formatCurrency(tx.monto, moneda)}
               </Text>
             </View>
           ))
@@ -401,6 +408,10 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: SIZES.spacing.xs,
   },
   logoutButton: {
     backgroundColor: COLORS.tertiary,

@@ -40,6 +40,15 @@ export const diffInDays = (fromKey: string, toKey: string): number => {
 };
 
 /**
+ * Rango [start, end) en ISO UTC que cubre del inicio del día local `fromKey`
+ * al final del día local `toKey` (inclusivo). Útil para totales de un ciclo.
+ */
+export const getLocalRangeISOForKeys = (fromKey: string, toKey: string): { start: string; end: string } => ({
+  start: parseDateKey(fromKey).toISOString(),
+  end: parseDateKey(addDaysToKey(toKey, 1)).toISOString(),
+});
+
+/**
  * Rango [start, end) en ISO UTC que cubre el día local completo.
  * Sirve para consultar columnas guardadas con `toISOString()`:
  *   WHERE fecha >= :start AND fecha < :end

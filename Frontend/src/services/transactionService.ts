@@ -1,5 +1,5 @@
 import { getDb } from '../database/initDb';
-import { getLocalDayRangeISO } from '../utils/dateUtils';
+import { getLocalDayRangeISO, getLocalRangeISOForKeys } from '../utils/dateUtils';
 
 export interface Categoria {
   id: number;
@@ -15,6 +15,7 @@ export interface Transaccion {
   concepto: string;
   categoria_id: number | null;
   categoria_nombre?: string;
+  categoria_icono?: string;
   origen_registro: 'Manual' | 'Voz' | 'OCR';
 }
 
@@ -26,7 +27,7 @@ export const transactionService = {
     const { start, end } = getLocalDayRangeISO();
 
     const rows = await db.getAllAsync<Transaccion>(
-      `SELECT t.*, c.nombre AS categoria_nombre
+      `SELECT t.*, c.nombre AS categoria_nombre, c.icono AS categoria_icono
        FROM Transaccion t
        LEFT JOIN Categoria c ON t.categoria_id = c.id
        WHERE t.usuario_id = ? AND t.fecha >= ? AND t.fecha < ?
@@ -40,6 +41,20 @@ export const transactionService = {
   getTodayTotal: async (userId: number): Promise<number> => {
     const db = await getDb();
     const { start, end } = getLocalDayRangeISO();
+
+    const result = await db.getFirstAsync<{ total: number }>(
+      `SELECT COALESCE(SUM(monto), 0) AS total
+       FROM Transaccion
+       WHERE usuario_id = ? AND fecha >= ? AND fecha < ?`,
+      [userId, start, end]
+    );
+    return result?.total ?? 0;
+  },
+
+  // Total gastado en un ciclo (fechas 'YYYY-MM-DD' locales, fin inclusivo)
+  getCycleTotal: async (userId: number, fechaInicio: string, fechaFin: string): Promise<number> => {
+    const db = await getDb();
+    const { start, end } = getLocalRangeISOForKeys(fechaInicio, fechaFin);
 
     const result = await db.getFirstAsync<{ total: number }>(
       `SELECT COALESCE(SUM(monto), 0) AS total

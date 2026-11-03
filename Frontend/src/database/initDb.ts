@@ -126,7 +126,17 @@ const migrationV2: Migration = async (db) => {
   }
 };
 
-const MIGRATIONS: Migration[] = [migrationV1, migrationV2];
+// ─────────────────────────────────────────────
+// v3 — Edición de presupuesto y conversión MXN ↔ USD (S1.1-06)
+// ─────────────────────────────────────────────
+const migrationV3: Migration = async (db) => {
+  await db.execAsync(`
+    ALTER TABLE Presupuesto ADD COLUMN tipo_cambio_usd REAL;
+    UPDATE Presupuesto SET moneda = 'MXN' WHERE moneda NOT IN ('MXN', 'USD');
+  `);
+};
+
+const MIGRATIONS: Migration[] = [migrationV1, migrationV2, migrationV3];
 
 /** Duración en días de cada ciclo (fuente única, usada también por budgetService). */
 export const cycleLengthInDays = (tipoCiclo: string): number => {
