@@ -13,7 +13,8 @@
       "backgroundColor": "#070708"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.carterita.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,14 +22,26 @@
         "backgroundColor": "#070708"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.carterita.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-status-bar",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Carterita usa el micrófono para que registres tus gastos dictándolos.",
+          "speechRecognitionPermission": "Carterita convierte tu voz en texto para registrar tus gastos.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as"
+          ]
+        }
+      ]
     ]
   }
 }

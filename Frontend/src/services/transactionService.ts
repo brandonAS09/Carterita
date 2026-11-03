@@ -16,8 +16,10 @@ export interface Transaccion {
   categoria_id: number | null;
   categoria_nombre?: string;
   categoria_icono?: string;
-  origen_registro: 'Manual' | 'Voz' | 'OCR';
+  origen_registro: OrigenRegistro;
 }
+
+export type OrigenRegistro = 'Manual' | 'Voz' | 'OCR';
 
 export const transactionService = {
   // Obtener gastos de HOY para un usuario dado
@@ -76,15 +78,16 @@ export const transactionService = {
     userId: number,
     monto: number,
     concepto: string,
-    categoriaId: number | null
+    categoriaId: number | null,
+    origen: OrigenRegistro = 'Manual'
   ): Promise<Transaccion> => {
     const db = await getDb();
     const fecha = new Date().toISOString();
 
     const result = await db.runAsync(
       `INSERT INTO Transaccion (usuario_id, monto, fecha, concepto, categoria_id, origen_registro)
-       VALUES (?, ?, ?, ?, ?, 'Manual')`,
-      [userId, monto, fecha, concepto.trim(), categoriaId]
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [userId, monto, fecha, concepto.trim(), categoriaId, origen]
     );
 
     return {
@@ -94,7 +97,7 @@ export const transactionService = {
       fecha,
       concepto: concepto.trim(),
       categoria_id: categoriaId,
-      origen_registro: 'Manual',
+      origen_registro: origen,
     };
   },
 };

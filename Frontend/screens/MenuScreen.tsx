@@ -336,17 +336,17 @@ export default function MenuScreen({ navigation }: any) {
           </View>
         )}
 
-        {/* ── Registro Rápido (Motor Multimodal - placeholder Sprint 2) ── */}
+        {/* ── Registro Rápido (Motor Multimodal) ── */}
         <Text style={styles.sectionTitle}>Registro Rápido</Text>
         <View style={styles.actionRow}>
+          {/* F03: Registro por voz */}
           <TouchableOpacity
-            style={[styles.actionButton, { opacity: 0.5 }]}
+            style={styles.actionButton}
             activeOpacity={0.8}
-            disabled
+            onPress={() => navigation.navigate('VoiceExpense')}
           >
             <Mic color={COLORS.background} size={26} />
             <Text style={styles.actionButtonText}>Voz</Text>
-            <Text style={styles.actionButtonBadge}>Sprint 2</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -356,7 +356,7 @@ export default function MenuScreen({ navigation }: any) {
           >
             <Camera color={COLORS.background} size={26} />
             <Text style={styles.actionButtonText}>Escanear</Text>
-            <Text style={styles.actionButtonBadge}>Sprint 2</Text>
+            <Text style={styles.actionButtonBadge}>Sprint 3</Text>
           </TouchableOpacity>
 
           {/* Botón de registro manual → F02 (próximo paso) */}

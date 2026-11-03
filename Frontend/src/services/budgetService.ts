@@ -148,6 +148,16 @@ export const budgetService = {
     };
   },
 
+  // D1 (F03): guarda la tasa capturada al dictar un monto en otra moneda
+  setExchangeRate: async (userId: number, tipoCambioUsd: number): Promise<void> => {
+    if (!(tipoCambioUsd > 0 && isFinite(tipoCambioUsd))) throw new Error('Tipo de cambio inválido.');
+    const db = await getDb();
+    await db.runAsync('UPDATE Presupuesto SET tipo_cambio_usd = ? WHERE usuario_id = ?', [
+      tipoCambioUsd,
+      userId,
+    ]);
+  },
+
   // Último día (inclusivo) del ciclo: Diario = mismo día, Semanal = +6, Mensual = +29
   calculateCycleEnd: (fechaInicio: string, tipoCiclo: TipoCiclo): string =>
     addDaysToKey(fechaInicio, cycleLengthInDays(tipoCiclo) - 1),

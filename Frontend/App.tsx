@@ -7,6 +7,7 @@ import LoginScreen from './screens/LoginScreen';
 import MenuScreen from './screens/MenuScreen';
 import BudgetSetupScreen from './screens/BudgetSetupScreen';
 import AddExpenseScreen from './screens/AddExpenseScreen';
+import VoiceExpenseScreen from './screens/VoiceExpenseScreen';
 import { initDatabase } from './src/database/initDb';
 import { authService } from './src/services/authService';
 import { budgetService } from './src/services/budgetService';
@@ -61,6 +62,7 @@ export default function App() {
           <Stack.Screen name="BudgetSetup" component={BudgetSetupScreen} />
           <Stack.Screen name="Menu" component={MenuScreen} />
           <Stack.Screen name="AddExpense" component={AddExpenseScreen} />
+          <Stack.Screen name="VoiceExpense" component={VoiceExpenseScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
