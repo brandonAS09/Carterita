@@ -1,6 +1,6 @@
-import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { initDatabase } from '../database/initDb';
+import { getDb } from '../database/initDb';
+import { hashPassword, verifyPassword } from '../utils/passwordUtils';
 
 export interface User {
   id: number;
@@ -10,14 +10,9 @@ export interface User {
 }
 
 export const authService = {
-  // Asegura que la BD esté lista
-  getDb: async () => {
-    return await initDatabase();
-  },
-
   // Registro de nuevo usuario
   register: async (nombre: string, email: string, password: string): Promise<User> => {
-    const db = await authService.getDb();
+    const db = await getDb();
     const cleanEmail = email.trim().toLowerCase();
     const cleanNombre = nombre.trim();
 
@@ -31,17 +26,18 @@ export const authService = {
       throw new Error('El correo electrónico ya se encuentra registrado.');
     }
 
-    // Insertar nuevo usuario
+    // Insertar nuevo usuario (la contraseña nunca se guarda en texto plano)
+    const passwordHash = await hashPassword(password);
     const result = await db.runAsync(
       'INSERT INTO Usuario (nombre, email, password_hash) VALUES (?, ?, ?)',
-      [cleanNombre, cleanEmail, password]
+      [cleanNombre, cleanEmail, passwordHash]
     );
 
     const newUser: User = {
       id: result.lastInsertRowId,
       nombre: cleanNombre,
       email: cleanEmail,
-      password_hash: password,
+      password_hash: passwordHash,
     };
 
     // Guardar sesión activa en AsyncStorage
@@ -54,7 +50,7 @@ export const authService = {
 
   // Inicio de sesión
   login: async (email: string, password: string): Promise<User> => {
-    const db = await authService.getDb();
+    const db = await getDb();
     const cleanEmail = email.trim().toLowerCase();
 
     const user = await db.getFirstAsync<User>(
@@ -66,7 +62,7 @@ export const authService = {
       throw new Error('Correo o contraseña incorrectos.');
     }
 
-    if (user.password_hash !== password) {
+    if (!(await verifyPassword(password, user.password_hash))) {
       throw new Error('Correo o contraseña incorrectos.');
     }
 

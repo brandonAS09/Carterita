@@ -1,4 +1,5 @@
-import { initDatabase } from '../database/initDb';
+import { getDb } from '../database/initDb';
+import { getLocalDayRangeISO } from '../utils/dateUtils';
 
 export interface Categoria {
   id: number;
@@ -18,44 +19,40 @@ export interface Transaccion {
 }
 
 export const transactionService = {
-  getDb: async () => {
-    return await initDatabase();
-  },
-
   // Obtener gastos de HOY para un usuario dado
   getTodayTransactions: async (userId: number): Promise<Transaccion[]> => {
-    const db = await transactionService.getDb();
-    // Obtenemos la fecha de hoy en formato YYYY-MM-DD para comparar
-    const today = new Date().toISOString().split('T')[0];
+    const db = await getDb();
+    // Rango del día LOCAL expresado en ISO UTC (las fechas se guardan con toISOString)
+    const { start, end } = getLocalDayRangeISO();
 
     const rows = await db.getAllAsync<Transaccion>(
       `SELECT t.*, c.nombre AS categoria_nombre
        FROM Transaccion t
        LEFT JOIN Categoria c ON t.categoria_id = c.id
-       WHERE t.usuario_id = ? AND date(t.fecha) = ?
+       WHERE t.usuario_id = ? AND t.fecha >= ? AND t.fecha < ?
        ORDER BY t.fecha DESC`,
-      [userId, today]
+      [userId, start, end]
     );
     return rows;
   },
 
   // Sumar el total gastado hoy
   getTodayTotal: async (userId: number): Promise<number> => {
-    const db = await transactionService.getDb();
-    const today = new Date().toISOString().split('T')[0];
+    const db = await getDb();
+    const { start, end } = getLocalDayRangeISO();
 
     const result = await db.getFirstAsync<{ total: number }>(
       `SELECT COALESCE(SUM(monto), 0) AS total
        FROM Transaccion
-       WHERE usuario_id = ? AND date(fecha) = ?`,
-      [userId, today]
+       WHERE usuario_id = ? AND fecha >= ? AND fecha < ?`,
+      [userId, start, end]
     );
     return result?.total ?? 0;
   },
 
   // Obtener todas las categorías disponibles
   getAllCategories: async (): Promise<Categoria[]> => {
-    const db = await transactionService.getDb();
+    const db = await getDb();
     return await db.getAllAsync<Categoria>('SELECT * FROM Categoria ORDER BY nombre ASC');
   },
 
@@ -66,7 +63,7 @@ export const transactionService = {
     concepto: string,
     categoriaId: number | null
   ): Promise<Transaccion> => {
-    const db = await transactionService.getDb();
+    const db = await getDb();
     const fecha = new Date().toISOString();
 
     const result = await db.runAsync(

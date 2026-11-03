@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -123,16 +124,14 @@ export default function MenuScreen({ navigation }: any) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Carga inicial
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  const hasLoadedOnce = useRef(false);
 
-  const loadDashboard = useCallback(async (isRefresh = false) => {
+  // mode: 'initial' → skeleton | 'refresh' → pull-to-refresh | 'silent' → al volver a la pantalla
+  const loadDashboard = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     try {
-      if (isRefresh) {
+      if (mode === 'refresh') {
         setIsRefreshing(true);
-      } else {
+      } else if (mode === 'initial') {
         setIsLoading(true);
       }
 
@@ -166,6 +165,7 @@ export default function MenuScreen({ navigation }: any) {
       const transacciones = await transactionService.getTodayTransactions(session.id);
 
       setData({ presupuesto, gastadoHoy, limiteDiario, saldoDisponible, transacciones });
+      hasLoadedOnce.current = true;
     } catch (error) {
       console.error('Error cargando el dashboard:', error);
     } finally {
@@ -173,6 +173,14 @@ export default function MenuScreen({ navigation }: any) {
       setIsRefreshing(false);
     }
   }, [navigation]);
+
+  // Recarga cada vez que la pantalla recibe el foco (ej. al regresar de "Nuevo Gasto" — Criterio F02 Esc. 1).
+  // La primera vez muestra el skeleton; después actualiza en silencio.
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard(hasLoadedOnce.current ? 'silent' : 'initial');
+    }, [loadDashboard])
+  );
 
   const handleLogout = async () => {
     await authService.logout();
@@ -227,7 +235,7 @@ export default function MenuScreen({ navigation }: any) {
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={() => loadDashboard(true)}
+            onRefresh={() => loadDashboard('refresh')}
             tintColor={COLORS.secondary}
             colors={[COLORS.secondary]}
           />
