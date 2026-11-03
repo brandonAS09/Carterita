@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +12,7 @@ import {
   FlatList,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ChevronLeft,
   DollarSign,
@@ -26,18 +26,7 @@ import { authService } from '../src/services/authService';
 import { budgetService } from '../src/services/budgetService';
 import { transactionService, Categoria } from '../src/services/transactionService';
 import { getCurrencySymbol } from '../src/utils/currencyUtils';
-
-// Mapeo simple de iconos de categoría a emojis visuales (sin dependencias extra)
-const CATEGORIA_EMOJIS: Record<string, string> = {
-  utensils:         '🍽️',
-  car:              '🚗',
-  tv:               '🎬',
-  'heart-pulse':    '❤️‍🩹',
-  'shopping-bag':   '🛍️',
-  'book-open':      '📚',
-  bolt:             '⚡',
-  'circle-ellipsis':'💬',
-};
+import { CategoryIcon } from '../src/theme/categoryIcons';
 
 export default function AddExpenseScreen({ navigation }: any) {
   // Datos de usuario / presupuesto
@@ -256,9 +245,11 @@ export default function AddExpenseScreen({ navigation }: any) {
                       }
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.categoryEmoji}>
-                        {CATEGORIA_EMOJIS[cat.icono] ?? '📦'}
-                      </Text>
+                      <CategoryIcon
+                        icono={cat.icono}
+                        color={isSelected ? COLORS.text : COLORS.secondary}
+                        size={16}
+                      />
                       <Text
                         style={[
                           styles.categoryChipText,
@@ -285,12 +276,20 @@ export default function AddExpenseScreen({ navigation }: any) {
                   maximumFractionDigits: 2,
                 })}
               </Text>
-              <Text style={styles.summaryDetail}>
-                {concepto.trim()}
-                {categoriaSeleccionada
-                  ? ` · ${CATEGORIA_EMOJIS[categoriaSeleccionada.icono] ?? ''} ${categoriaSeleccionada.nombre}`
-                  : ''}
-              </Text>
+              <View style={styles.summaryDetailRow}>
+                <Text style={styles.summaryDetail}>{concepto.trim()}</Text>
+                {categoriaSeleccionada && (
+                  <>
+                    <Text style={styles.summaryDetail}>·</Text>
+                    <CategoryIcon
+                      icono={categoriaSeleccionada.icono}
+                      color={COLORS.textSecondary}
+                      size={14}
+                    />
+                    <Text style={styles.summaryDetail}>{categoriaSeleccionada.nombre}</Text>
+                  </>
+                )}
+              </View>
             </View>
           )}
 
@@ -489,9 +488,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderColor: COLORS.secondary,
   },
-  categoryEmoji: {
-    fontSize: 16,
-  },
   categoryChipText: {
     color: COLORS.textSecondary,
     fontSize: SIZES.body2,
@@ -534,10 +530,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontVariant: ['tabular-nums'],
   },
+  summaryDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
   summaryDetail: {
     color: COLORS.textSecondary,
     fontSize: SIZES.body2,
-    marginTop: 4,
   },
   // ── Botón Guardar ──
   saveButton: {

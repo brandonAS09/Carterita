@@ -4,18 +4,17 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   RefreshControl,
   Animated,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Mic,
   Camera,
   TrendingUp,
-  Wallet,
   LogOut,
   PlusCircle,
   PackageOpen,
@@ -26,6 +25,7 @@ import { authService } from '../src/services/authService';
 import { budgetService, Presupuesto } from '../src/services/budgetService';
 import { transactionService, Transaccion } from '../src/services/transactionService';
 import { formatAmount } from '../src/utils/currencyUtils';
+import { CategoryIcon } from '../src/theme/categoryIcons';
 
 // ─────────────────────────────────────────────
 // Componente auxiliar: Skeleton Loader (Criterio F05 - Escenario 1)
@@ -241,7 +241,7 @@ export default function MenuScreen({ navigation }: any) {
         {/* ── Header ── */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.saludo}>¡Hola, {userName || 'Usuario'}! 👋</Text>
+            <Text style={styles.saludo}>Hola, {userName || 'Usuario'}</Text>
             <Text style={styles.appTitle}>Carterita</Text>
           </View>
           <View style={styles.headerActions}>
@@ -347,14 +347,14 @@ export default function MenuScreen({ navigation }: any) {
             <PackageOpen color={COLORS.primary} size={52} />
             <Text style={styles.emptyStateTitle}>¡Sin gastos por ahora!</Text>
             <Text style={styles.emptyStateSubtitle}>
-              Aún no tienes gastos hoy. ¡Sigue así! 💪
+              Aún no tienes gastos hoy. ¡Sigue así!
             </Text>
           </View>
         ) : (
           data?.transacciones.map((tx) => (
             <View key={tx.id} style={styles.transactionCard}>
               <View style={styles.transactionIcon}>
-                <Wallet color={COLORS.secondary} size={20} />
+                <CategoryIcon icono={tx.categoria_icono} color={COLORS.secondary} size={20} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.transactionConcept} numberOfLines={1}>

@@ -5,13 +5,13 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Coins,
   Calendar,
@@ -252,7 +252,7 @@ export default function BudgetSetupScreen({ navigation, route }: any) {
                 <CircleDollarSign color={COLORS.secondary} size={36} />
               </View>
               <Text style={styles.welcomeText}>
-                ¡Hola{userName ? `, ${userName}` : ''}! 👋
+                Hola{userName ? `, ${userName}` : ''}
               </Text>
               <Text style={styles.title}>Define tu Presupuesto</Text>
               <Text style={styles.subtitle}>

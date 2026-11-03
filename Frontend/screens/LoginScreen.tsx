@@ -5,13 +5,13 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, User as UserIcon, AlertCircle, Eye, EyeOff, Wallet } from 'lucide-react-native';
 import { COLORS, SIZES } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
