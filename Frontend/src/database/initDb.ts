@@ -136,7 +136,127 @@ const migrationV3: Migration = async (db) => {
   `);
 };
 
-const MIGRATIONS: Migration[] = [migrationV1, migrationV2, migrationV3];
+// ─────────────────────────────────────────────
+// v4 — Aportes a metas de ahorro (F07, Sprint 3)
+// ─────────────────────────────────────────────
+const migrationV4: Migration = async (db) => {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS AporteMeta (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      meta_id INTEGER NOT NULL,
+      usuario_id INTEGER NOT NULL,
+      monto REAL NOT NULL,
+      fecha TEXT NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'Excedente',
+      fecha_origen TEXT,
+      FOREIGN KEY (meta_id) REFERENCES MetaAhorro (id) ON DELETE CASCADE,
+      FOREIGN KEY (usuario_id) REFERENCES Usuario (id) ON DELETE CASCADE
+    );
+
+    -- El excedente de un día solo puede moverse una vez
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_aporte_excedente_dia
+      ON AporteMeta (usuario_id, fecha_origen) WHERE tipo = 'Excedente';
+
+    CREATE INDEX IF NOT EXISTS idx_aporte_meta ON AporteMeta (meta_id);
+  `);
+};
+
+// ─────────────────────────────────────────────
+// v5 — Reparación de esquema de metas (Sprint 3)
+// Algunas BD conservaban tablas MetaAhorro / AporteMeta de un intento previo (descartado)
+// con columnas distintas (ej. `fecha_creacion NOT NULL`). Como v2/v4 usan CREATE TABLE
+// IF NOT EXISTS, esas tablas nunca se actualizaron. Aquí se reconstruyen si no coinciden.
+// ─────────────────────────────────────────────
+interface TableSpec {
+  create: string;              // CREATE TABLE <nombre> (...) canónico
+  columns: string[];           // columnas canónicas
+  required: string[];          // sin estas columnas los datos viejos no se pueden copiar
+  selectExpr?: Record<string, string>; // expresión de copia por columna (para NULLs)
+  after?: string;              // índices a recrear
+}
+
+const GOAL_TABLES: Record<'MetaAhorro' | 'AporteMeta', TableSpec> = {
+  MetaAhorro: {
+    create: `CREATE TABLE MetaAhorro (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id INTEGER NOT NULL,
+      nombre TEXT NOT NULL,
+      monto_objetivo REAL NOT NULL,
+      monto_acumulado REAL NOT NULL DEFAULT 0,
+      icono TEXT,
+      fecha_limite TEXT,
+      FOREIGN KEY (usuario_id) REFERENCES Usuario (id) ON DELETE CASCADE
+    )`,
+    columns: ['id', 'usuario_id', 'nombre', 'monto_objetivo', 'monto_acumulado', 'icono', 'fecha_limite'],
+    required: ['id', 'usuario_id', 'nombre', 'monto_objetivo'],
+    selectExpr: { monto_acumulado: 'COALESCE(monto_acumulado, 0)' },
+  },
+  AporteMeta: {
+    create: `CREATE TABLE AporteMeta (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      meta_id INTEGER NOT NULL,
+      usuario_id INTEGER NOT NULL,
+      monto REAL NOT NULL,
+      fecha TEXT NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'Excedente',
+      fecha_origen TEXT,
+      FOREIGN KEY (meta_id) REFERENCES MetaAhorro (id) ON DELETE CASCADE,
+      FOREIGN KEY (usuario_id) REFERENCES Usuario (id) ON DELETE CASCADE
+    )`,
+    columns: ['id', 'meta_id', 'usuario_id', 'monto', 'fecha', 'tipo', 'fecha_origen'],
+    required: ['id', 'meta_id', 'usuario_id', 'monto', 'fecha'],
+    selectExpr: { tipo: "COALESCE(tipo, 'Excedente')" },
+    after: `
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_aporte_excedente_dia
+        ON AporteMeta (usuario_id, fecha_origen) WHERE tipo = 'Excedente';
+      CREATE INDEX IF NOT EXISTS idx_aporte_meta ON AporteMeta (meta_id);
+    `,
+  },
+};
+
+/**
+ * Procedimiento recomendado por SQLite para cambiar un esquema: crear tabla nueva,
+ * copiar, borrar la vieja y renombrar. Requiere foreign_keys = OFF (ver openAndPrepare).
+ */
+const rebuildTableIfSchemaDiffers = async (db: SQLite.SQLiteDatabase, table: string, spec: TableSpec) => {
+  const info = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+  const actual = info.map((c) => c.name);
+
+  if (actual.length === 0) {
+    await db.execAsync(`${spec.create};${spec.after ?? ''}`);
+    return;
+  }
+  const matches = actual.length === spec.columns.length && spec.columns.every((c) => actual.includes(c));
+  if (matches) return;
+
+  console.log(`Reparando esquema de ${table}: [${actual.join(', ')}] → [${spec.columns.join(', ')}]`);
+  await db.execAsync(spec.create.replace(`CREATE TABLE ${table}`, `CREATE TABLE ${table}_nueva`));
+
+  if (spec.required.every((c) => actual.includes(c))) {
+    const common = spec.columns.filter((c) => actual.includes(c));
+    const select = common.map((c) => spec.selectExpr?.[c] ?? c);
+    try {
+      await db.execAsync(
+        `INSERT INTO ${table}_nueva (${common.join(', ')}) SELECT ${select.join(', ')} FROM ${table}`
+      );
+    } catch (error) {
+      console.warn(`No se pudieron copiar los datos previos de ${table}; se descartan.`, error);
+    }
+  } else {
+    console.warn(`${table} previa sin columnas obligatorias; sus datos se descartan.`);
+  }
+
+  await db.execAsync(`DROP TABLE ${table}; ALTER TABLE ${table}_nueva RENAME TO ${table};${spec.after ?? ''}`);
+};
+
+const migrationV5: Migration = async (db) => {
+  await rebuildTableIfSchemaDiffers(db, 'MetaAhorro', GOAL_TABLES.MetaAhorro);
+  await rebuildTableIfSchemaDiffers(db, 'AporteMeta', GOAL_TABLES.AporteMeta);
+  // Aportes huérfanos (de metas que no sobrevivieron a la reparación)
+  await db.execAsync('DELETE FROM AporteMeta WHERE meta_id NOT IN (SELECT id FROM MetaAhorro)');
+};
+
+const MIGRATIONS: Migration[] = [migrationV1, migrationV2, migrationV3, migrationV4, migrationV5];
 
 /** Duración en días de cada ciclo (fuente única, usada también por budgetService). */
 export const cycleLengthInDays = (tipoCiclo: string): number => {
@@ -166,9 +286,13 @@ const runMigrations = async (db: SQLite.SQLiteDatabase) => {
 
 const openAndPrepare = async (): Promise<SQLite.SQLiteDatabase> => {
   const db = await SQLite.openDatabaseAsync('carterita.db');
+  // Las migraciones corren con foreign keys apagadas: reconstruir una tabla (DROP + RENAME)
+  // con FKs activas dispararía borrados en cascada. Este PRAGMA no surte efecto dentro de
+  // una transacción, por eso se cambia antes y después de migrar.
+  await db.execAsync('PRAGMA foreign_keys = OFF;');
+  await runMigrations(db);
   // Las foreign keys vienen apagadas por defecto y se configuran por conexión.
   await db.execAsync('PRAGMA foreign_keys = ON;');
-  await runMigrations(db);
   return db;
 };
 

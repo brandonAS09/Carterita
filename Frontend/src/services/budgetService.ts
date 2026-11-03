@@ -127,6 +127,10 @@ export const budgetService = {
            WHERE usuario_id = ?`,
           [factor, factor, userId]
         );
+        await db.runAsync(
+          'UPDATE AporteMeta SET monto = ROUND(monto * ?, 2) WHERE usuario_id = ?',
+          [factor, userId]
+        );
       }
 
       await db.runAsync(

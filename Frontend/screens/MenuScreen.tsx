@@ -203,7 +203,7 @@ export default function MenuScreen({ navigation }: any) {
   // ─────────────────────────────────────────────
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <StatusBar style="light" />
         {/* Header estático mientras carga */}
         <View style={styles.header}>
@@ -220,7 +220,7 @@ export default function MenuScreen({ navigation }: any) {
   const moneda = data?.presupuesto?.moneda ?? 'MXN';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar style="light" />
       <ScrollView
         contentContainerStyle={styles.scrollContent}

@@ -1,5 +1,6 @@
 import { budgetService, Presupuesto } from './budgetService';
 import { transactionService } from './transactionService';
+import { goalService } from './goalService';
 import { calculateSmartBudget, SmartBudgetResult } from '../utils/smartBudgetCalculator';
 import { addDaysToKey, toLocalDateKey } from '../utils/dateUtils';
 import { round2 } from '../utils/currencyUtils';
@@ -16,10 +17,12 @@ export const smartBudgetService = {
     if (!presupuesto) return null;
 
     const hoy = toLocalDateKey();
-    const [gastadoAntesDeHoy, gastadoHoy] = await Promise.all([
+    const [gastadoAntesDeHoy, gastadoHoy, aportadoEnCiclo] = await Promise.all([
       // Si hoy es el primer día, el rango queda vacío y el total es 0
       transactionService.getCycleTotal(userId, presupuesto.fecha_inicio, addDaysToKey(hoy, -1)),
       transactionService.getTodayTotal(userId),
+      // F07: excedentes movidos a metas cuentan como dinero ya usado del ciclo
+      goalService.getSurplusContributionsBetween(userId, presupuesto.fecha_inicio, presupuesto.fecha_fin),
     ]);
 
     const result = calculateSmartBudget({
@@ -29,7 +32,7 @@ export const smartBudgetService = {
       hoy,
       gastadoAntesDeHoy,
       gastadoHoy,
-      aportadoEnCiclo: 0, // F07 conectará aquí los aportes a metas del ciclo
+      aportadoEnCiclo,
     });
 
     // Redondeo a centavos para evitar mostrar "-$0.00" por residuos de punto flotante
