@@ -4,8 +4,11 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from './screens/LoginScreen';
 import MenuScreen from './screens/MenuScreen';
+import BudgetSetupScreen from './screens/BudgetSetupScreen';
+import AddExpenseScreen from './screens/AddExpenseScreen';
 import { initDatabase } from './src/database/initDb';
 import { authService } from './src/services/authService';
+import { budgetService } from './src/services/budgetService';
 import { COLORS } from './src/theme/theme';
 
 const Stack = createNativeStackNavigator();
@@ -25,7 +28,13 @@ export default function App() {
       // 2. Verificar si hay sesión activa
       const session = await authService.getActiveSession();
       if (session) {
-        setInitialRoute('Menu');
+        // 3. Verificar si ya configuró su presupuesto inicial
+        const budget = await budgetService.getBudgetByUserId(session.id);
+        if (budget) {
+          setInitialRoute('Menu');
+        } else {
+          setInitialRoute('BudgetSetup');
+        }
       } else {
         setInitialRoute('Login');
       }
@@ -47,7 +56,9 @@ export default function App() {
     <NavigationContainer>
       <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="BudgetSetup" component={BudgetSetupScreen} />
         <Stack.Screen name="Menu" component={MenuScreen} />
+        <Stack.Screen name="AddExpense" component={AddExpenseScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

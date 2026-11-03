@@ -55,6 +55,29 @@ export const initDatabase = async () => {
       );
     `);
 
+    // 5. Pre-poblar Categorías por defecto (solo si la tabla está vacía)
+    const catCount = await db.getFirstAsync<{ total: number }>(
+      'SELECT COUNT(*) AS total FROM Categoria'
+    );
+    if (catCount && catCount.total === 0) {
+      const categorias = [
+        { nombre: 'Comida',       icono: 'utensils' },
+        { nombre: 'Transporte',   icono: 'car' },
+        { nombre: 'Entretenimiento', icono: 'tv' },
+        { nombre: 'Salud',        icono: 'heart-pulse' },
+        { nombre: 'Compras',      icono: 'shopping-bag' },
+        { nombre: 'Educación',    icono: 'book-open' },
+        { nombre: 'Servicios',    icono: 'bolt' },
+        { nombre: 'Otros',        icono: 'circle-ellipsis' },
+      ];
+      for (const cat of categorias) {
+        await db.runAsync(
+          'INSERT INTO Categoria (nombre, icono) VALUES (?, ?)',
+          [cat.nombre, cat.icono]
+        );
+      }
+    }
+
     console.log('Base de datos inicializada correctamente');
     return db;
   } catch (error) {

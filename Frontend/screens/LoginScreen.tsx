@@ -10,11 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StatusBar
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { Mail, Lock, User as UserIcon, AlertCircle, Eye, EyeOff, Wallet } from 'lucide-react-native';
 import { COLORS, SIZES } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
+import { budgetService } from '../src/services/budgetService';
 
 export default function LoginScreen({ navigation }: any) {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -62,13 +63,20 @@ export default function LoginScreen({ navigation }: any) {
     setServerError(null);
 
     try {
+      let user;
       if (isLoginMode) {
-        await authService.login(email, password);
+        user = await authService.login(email, password);
       } else {
-        await authService.register(nombre, email, password);
+        user = await authService.register(nombre, email, password);
       }
-      // Navegación al Dashboard/Menú al autenticarse exitosamente
-      navigation.replace('Menu');
+
+      // Validar si el usuario ya tiene configurado su presupuesto inicial
+      const budget = await budgetService.getBudgetByUserId(user.id);
+      if (budget) {
+        navigation.replace('Menu');
+      } else {
+        navigation.replace('BudgetSetup');
+      }
     } catch (error: any) {
       setServerError(error.message || 'Ocurrió un error inesperado.');
     } finally {
@@ -78,7 +86,7 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar style="light" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardContainer}
