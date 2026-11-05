@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { COLORS, SIZES } from '../theme/theme';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useTheme } from '../theme/ThemeProvider';
+import { MIN_TOUCH, RADIUS, SPACING, TYPOGRAPHY } from '../theme/theme';
 import { CategoryIcon } from '../theme/categoryIcons';
 import type { Categoria } from '../services/transactionService';
 
@@ -12,20 +13,23 @@ interface CategoryPickerProps {
 
 /** Selector de categoría en chips (vista previa de Voz y Escáner). */
 export default function CategoryPicker({ categorias, selectedId, onChange }: CategoryPickerProps) {
+  const { colors } = useTheme();
   return (
     <View style={styles.grid}>
       {categorias.map((cat) => {
         const isSelected = selectedId === cat.id;
+        const fg = isSelected ? colors.onPrimary : colors.text;
         return (
-          <TouchableOpacity
+          <Pressable
             key={cat.id}
-            style={[styles.chip, isSelected && styles.chipSelected]}
             onPress={() => onChange(isSelected ? null : cat)}
-            activeOpacity={0.8}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: isSelected }}
+            style={[styles.chip, { backgroundColor: isSelected ? colors.primary : colors.surfaceVariant }]}
           >
-            <CategoryIcon icono={cat.icono} color={isSelected ? COLORS.text : COLORS.secondary} size={16} />
-            <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>{cat.nombre}</Text>
-          </TouchableOpacity>
+            <CategoryIcon icono={cat.icono} color={isSelected ? colors.onPrimary : colors.primary} size={16} />
+            <Text style={[TYPOGRAPHY.body2, { color: fg }]}>{cat.nombre}</Text>
+          </Pressable>
         );
       })}
     </View>
@@ -33,33 +37,13 @@ export default function CategoryPicker({ categorias, selectedId, onChange }: Cat
 }
 
 const styles = StyleSheet.create({
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SIZES.spacing.xs,
-  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderRadius: SIZES.radius.button,
-    paddingHorizontal: SIZES.spacing.sm,
-    paddingVertical: 8,
-  },
-  chipSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.secondary,
-  },
-  chipText: {
-    color: COLORS.textSecondary,
-    fontSize: SIZES.body2,
-    fontWeight: '500',
-  },
-  chipTextSelected: {
-    color: COLORS.text,
-    fontWeight: '700',
+    minHeight: MIN_TOUCH,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACING.md,
   },
 });

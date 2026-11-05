@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
-import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { House, PiggyBank } from 'lucide-react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
+import { useFonts } from 'expo-font';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import LoginScreen from './screens/LoginScreen';
 import MenuScreen from './screens/MenuScreen';
 import BudgetSetupScreen from './screens/BudgetSetupScreen';
@@ -16,34 +19,27 @@ import CreateGoalScreen from './screens/CreateGoalScreen';
 import { initDatabase } from './src/database/initDb';
 import { authService } from './src/services/authService';
 import { budgetService } from './src/services/budgetService';
-import { COLORS } from './src/theme/theme';
+import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
+import { MIN_TOUCH, TYPOGRAPHY } from './src/theme/theme';
+
+// Sigue visible hasta aplicar el tema y las fuentes, para evitar un destello (sección 8 de la guía)
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Tema oscuro de navegación (evita destellos blancos entre pantallas)
-const NAV_THEME = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    primary: COLORS.secondary,
-    background: COLORS.background,
-    card: COLORS.tertiary,
-    text: COLORS.text,
-    border: COLORS.primary,
-  },
-};
-
 /** S3-01: navegación inferior entre el Dashboard y las Metas. */
 function MainTabs() {
+  const { colors } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: COLORS.secondary,
-        tabBarInactiveTintColor: COLORS.textSecondary,
-        tabBarStyle: { backgroundColor: COLORS.tertiary, borderTopColor: COLORS.primary },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.divider },
+        tabBarLabelStyle: TYPOGRAPHY.caption,
+        tabBarItemStyle: { minHeight: MIN_TOUCH },
         tabBarIcon: ({ color, size }) =>
           route.name === 'Inicio' ? <House color={color} size={size} /> : <PiggyBank color={color} size={size} />,
       })}
@@ -54,8 +50,33 @@ function MainTabs() {
   );
 }
 
-export default function App() {
+function AppContent() {
+  const { colors, isDark, isReady: isThemeReady } = useTheme();
+  const [fontsLoaded, fontError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   const [initialRoute, setInitialRoute] = useState<string | null>(null);
+
+  // Si las fuentes fallan, la app continúa con la fuente del sistema
+  const isReady = isThemeReady && (fontsLoaded || !!fontError) && !!initialRoute;
+
+  useEffect(() => {
+    if (isReady) SplashScreen.hideAsync().catch(() => {});
+  }, [isReady]);
+
+  // Tema de navegación: evita destellos entre pantallas
+  const navTheme = useMemo(() => {
+    const base = isDark ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: colors.primary,
+        background: colors.background,
+        card: colors.surface,
+        text: colors.text,
+        border: colors.divider,
+      },
+    };
+  }, [colors, isDark]);
 
   useEffect(() => {
     bootstrapApp();
@@ -85,17 +106,13 @@ export default function App() {
     }
   };
 
-  if (!initialRoute) {
-    return (
-      <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={COLORS.secondary} />
-      </View>
-    );
-  }
+  if (!isReady) return null;
 
   return (
-    <SafeAreaProvider>
-      <NavigationContainer theme={NAV_THEME}>
+    <>
+      {/* Toda pantalla inicia con la cabecera en gradiente: los iconos de la barra siempre son claros */}
+      <StatusBar style="light" />
+      <NavigationContainer theme={navTheme}>
         <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="BudgetSetup" component={BudgetSetupScreen} />
@@ -106,6 +123,16 @@ export default function App() {
           <Stack.Screen name="CreateGoal" component={CreateGoalScreen} />
         </Stack.Navigator>
       </NavigationContainer>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

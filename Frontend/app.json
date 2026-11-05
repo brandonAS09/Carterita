@@ -5,13 +5,8 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#070708"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.carterita.app"
@@ -19,9 +14,8 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#070708"
+        "backgroundColor": "#5B21B6"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.carterita.app"
     },
@@ -48,6 +42,20 @@
           "cameraPermission": "Carterita usa la cámara para que escanees tus tickets y registres tus gastos.",
           "photosPermission": "Carterita accede a tus fotos para que elijas la imagen de un ticket.",
           "microphonePermission": "Carterita usa el micrófono para que registres tus gastos dictándolos."
+        }
+      ],
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#3B1A8F",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#23124F"
+          }
         }
       ]
     ]

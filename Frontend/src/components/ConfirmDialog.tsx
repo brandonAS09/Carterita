@@ -1,6 +1,8 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { COLORS, SIZES } from '../theme/theme';
+import { Modal, View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../theme/ThemeProvider';
+import { RADIUS, SPACING, TYPOGRAPHY } from '../theme/theme';
+import Button from './ui/Button';
 
 interface ConfirmDialogProps {
   visible: boolean;
@@ -8,6 +10,8 @@ interface ConfirmDialogProps {
   message: string;
   confirmLabel: string;
   cancelLabel?: string;
+  /** La confirmación elimina algo: el botón usa el color de error. */
+  destructive?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -19,22 +23,22 @@ export default function ConfirmDialog({
   message,
   confirmLabel,
   cancelLabel = 'Cancelar',
+  destructive,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const { colors } = useTheme();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.overlay}>
-        <View style={styles.card}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.message}>{message}</Text>
+      <View style={[styles.overlay, { backgroundColor: colors.scrim }]}>
+        <View style={[styles.card, { backgroundColor: colors.surface }]} accessibilityViewIsModal>
+          <Text style={[TYPOGRAPHY.h3, { color: colors.text }]} accessibilityRole="header">
+            {title}
+          </Text>
+          <Text style={[TYPOGRAPHY.body2, { color: colors.textSecondary }]}>{message}</Text>
           <View style={styles.actions}>
-            <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onCancel} activeOpacity={0.8}>
-              <Text style={styles.cancelText}>{cancelLabel}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.confirmButton]} onPress={onConfirm} activeOpacity={0.8}>
-              <Text style={styles.confirmText}>{confirmLabel}</Text>
-            </TouchableOpacity>
+            <Button label={confirmLabel} variant={destructive ? 'destructive' : 'primary'} onPress={onConfirm} />
+            <Button label={cancelLabel} variant="text" onPress={onCancel} />
           </View>
         </View>
       </View>
@@ -43,58 +47,7 @@ export default function ConfirmDialog({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    paddingHorizontal: SIZES.spacing.lg,
-  },
-  card: {
-    backgroundColor: COLORS.tertiary,
-    borderRadius: SIZES.radius.card,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    padding: SIZES.spacing.lg,
-  },
-  title: {
-    color: COLORS.text,
-    fontSize: SIZES.h2 - 4,
-    fontWeight: 'bold',
-    marginBottom: SIZES.spacing.xs,
-  },
-  message: {
-    color: COLORS.textSecondary,
-    fontSize: SIZES.body2,
-    lineHeight: 20,
-    marginBottom: SIZES.spacing.lg,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: SIZES.spacing.xs,
-  },
-  button: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: SIZES.radius.button,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SIZES.spacing.sm,
-  },
-  cancelButton: {
-    borderWidth: 2,
-    borderColor: COLORS.secondary,
-  },
-  confirmButton: {
-    backgroundColor: COLORS.secondary,
-  },
-  cancelText: {
-    color: COLORS.secondary,
-    fontSize: SIZES.body1,
-    fontWeight: '600',
-  },
-  confirmText: {
-    color: COLORS.background,
-    fontSize: SIZES.body1,
-    fontWeight: 'bold',
-  },
+  overlay: { flex: 1, justifyContent: 'center', paddingHorizontal: SPACING.lg },
+  card: { borderRadius: RADIUS.xl, padding: SPACING.lg, gap: SPACING.sm },
+  actions: { gap: SPACING.xs, marginTop: SPACING.xs },
 });
