@@ -17,6 +17,7 @@ import ScannerExpenseScreen from './screens/ScannerExpenseScreen';
 import GoalsScreen from './screens/GoalsScreen';
 import CreateGoalScreen from './screens/CreateGoalScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import HistoryScreen from './screens/HistoryScreen';
 import { initDatabase } from './src/database/initDb';
 import { authService } from './src/services/authService';
 import { budgetService } from './src/services/budgetService';
@@ -123,6 +124,7 @@ function AppContent() {
           <Stack.Screen name="ScannerExpense" component={ScannerExpenseScreen} />
           <Stack.Screen name="CreateGoal" component={CreateGoalScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="History" component={HistoryScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </>

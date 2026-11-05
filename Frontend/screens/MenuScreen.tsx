@@ -10,14 +10,16 @@ import { transactionService, Transaccion } from '../src/services/transactionServ
 import { useTheme, useThemedStyles } from '../src/theme/ThemeProvider';
 import { RADIUS, SPACING, ThemeColors, TYPOGRAPHY } from '../src/theme/theme';
 import { formatAmount } from '../src/utils/currencyUtils';
-import { formatDayLabel, formatLongDate, toLocalDateKey } from '../src/utils/dateUtils';
+import { formatDayLabel, formatLongDate } from '../src/utils/dateUtils';
+import { groupByDay } from '../src/utils/historyUtils';
 import HeroHeader from '../src/components/ui/HeroHeader';
-import Amount from '../src/components/ui/Amount';
+import { CountingAmount } from '../src/components/ui/Amount';
+import Button from '../src/components/ui/Button';
 import { EmptyState, ErrorState, Skeleton } from '../src/components/ui/States';
 import { Avatar, Logo, QuickAction, SummaryTile, TransactionRow } from '../src/components/ui/HomeBlocks';
 
 const RECENT_LIMIT = 5;
-const TILE_OVERLAP = -28;
+const TILE_OVERLAP = -20;
 const STATUS_SCRIM_SCROLL = 60;
 
 interface DashboardData extends TodayBudgetSummary {
@@ -37,17 +39,6 @@ const getBudgetChip = (data: DashboardData): { icon: LucideIcon; text: string } 
   if (data.ajuste === 'alza') return { icon: TrendingUp, text: 'Ahorraste: tu límite de hoy subió' };
   if (data.ajuste === 'baja') return { icon: TrendingDown, text: 'Tu límite de hoy se ajustó' };
   return null;
-};
-
-const groupByDay = (transacciones: Transaccion[]) => {
-  const groups: { day: string; items: Transaccion[] }[] = [];
-  for (const tx of transacciones) {
-    const day = toLocalDateKey(new Date(tx.fecha));
-    const last = groups[groups.length - 1];
-    if (last?.day === day) last.items.push(tx);
-    else groups.push({ day, items: [tx] });
-  }
-  return groups;
 };
 
 const formatTime = (fecha: string) =>
@@ -141,7 +132,7 @@ export default function MenuScreen({ navigation }: any) {
     return (
       <View style={styles.heroBody}>
         <Text style={styles.heroLabel}>Disponible hoy</Text>
-        <Amount
+        <CountingAmount
           value={data.disponibleHoy}
           moneda={moneda}
           label="Disponible hoy"
@@ -262,9 +253,12 @@ export default function MenuScreen({ navigation }: any) {
               <QuickAction label="Escanear" icon={Camera} onPress={() => navigation.navigate('ScannerExpense')} />
             </View>
 
-            <Text style={styles.sectionTitle} accessibilityRole="header">
-              Últimas transacciones
-            </Text>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionTitle} accessibilityRole="header">
+                Últimas transacciones
+              </Text>
+              <Button label="Ver todo" variant="text" onPress={() => navigation.navigate('History')} />
+            </View>
             <View style={styles.transactions}>{renderTransactions()}</View>
           </View>
         )}
@@ -305,8 +299,9 @@ const createStyles = (colors: ThemeColors) =>
     tilesScroll: { marginTop: TILE_OVERLAP, marginHorizontal: -SPACING.md, flexGrow: 0 },
     tiles: { flexGrow: 1, gap: SPACING.xs, paddingHorizontal: SPACING.md },
     quickActions: { flexDirection: 'row', gap: SPACING.xs, marginTop: SPACING.md },
-    sectionTitle: { ...TYPOGRAPHY.h3, color: colors.text, marginTop: SPACING.lg },
-    transactions: { marginTop: SPACING.xs },
+    sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: SPACING.md },
+    sectionTitle: { ...TYPOGRAPHY.h3, color: colors.text, flexShrink: 1 },
+    transactions: { marginTop: 4 },
     dayLabel: { ...TYPOGRAPHY.body2Strong, color: colors.textSecondary, marginTop: SPACING.xs },
     skeletonRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.xs },
     skeletonIcon: { borderRadius: 20 },
