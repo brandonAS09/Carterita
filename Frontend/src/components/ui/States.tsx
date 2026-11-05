@@ -3,6 +3,7 @@ import { Animated, DimensionValue, StyleProp, StyleSheet, Text, View, ViewStyle 
 import { AlertCircle, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { RADIUS, SPACING, TYPOGRAPHY } from '../../theme/theme';
+import { useReducedMotion } from '../../utils/useReducedMotion';
 import Button from './Button';
 
 interface StateProps {
@@ -44,9 +45,11 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 /** Esqueleto con la forma del contenido; pulsa mientras los datos cargan. */
 export function Skeleton({ width, height, style }: { width: DimensionValue; height: number; style?: StyleProp<ViewStyle> }) {
   const { colors } = useTheme();
+  const reduceMotion = useReducedMotion();
   const opacity = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
+    if (reduceMotion) return;
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 1, duration: 600, useNativeDriver: true }),
@@ -55,7 +58,7 @@ export function Skeleton({ width, height, style }: { width: DimensionValue; heig
     );
     pulse.start();
     return () => pulse.stop();
-  }, [opacity]);
+  }, [opacity, reduceMotion]);
 
   return (
     <Animated.View

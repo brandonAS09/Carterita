@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { StyleProp, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
-import { AlertCircle } from 'lucide-react-native';
+import { AlertCircle, type LucideIcon } from 'lucide-react-native';
 import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 import { MIN_TOUCH, RADIUS, SPACING, ThemeColors, TYPOGRAPHY } from '../../theme/theme';
 
 interface TextFieldProps extends TextInputProps {
   label?: string;
   error?: string | null;
+  leftIcon?: LucideIcon;
   /** Texto fijo antes del valor, como "$". */
   prefix?: string;
   /** Texto fijo después del valor, como "MXN". */
@@ -21,6 +22,7 @@ interface TextFieldProps extends TextInputProps {
 export default function TextField({
   label,
   error,
+  leftIcon: LeftIcon,
   prefix,
   suffix,
   amount,
@@ -42,6 +44,7 @@ export default function TextField({
     <View style={containerStyle}>
       {label && <Text style={styles.label}>{label}</Text>}
       <View style={[styles.field, stateStyle]}>
+        {LeftIcon && <LeftIcon color={colors.textSecondary} size={20} />}
         {prefix && <Text style={[valueStyle, styles.affix]}>{prefix}</Text>}
         <TextInput
           {...inputProps}

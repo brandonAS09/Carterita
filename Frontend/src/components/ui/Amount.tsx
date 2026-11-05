@@ -1,6 +1,7 @@
-import React from 'react';
-import { StyleProp, Text, TextStyle } from 'react-native';
-import { formatAmount, speakAmount } from '../../utils/currencyUtils';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, StyleProp, Text, TextStyle } from 'react-native';
+import { formatAmount, round2, speakAmount } from '../../utils/currencyUtils';
+import { useReducedMotion } from '../../utils/useReducedMotion';
 
 interface AmountProps {
   value: number;
@@ -36,4 +37,26 @@ export default function Amount({ value, moneda, sign = 'auto', label, fit, style
       {formatAmount(value, moneda)}
     </Text>
   );
+}
+
+const COUNT_DURATION = 400;
+
+/** Monto que cuenta hasta su nuevo valor en 400ms (sección 9 de la guía). La primera vez aparece directo. */
+export function CountingAmount({ value, ...props }: AmountProps) {
+  const reduceMotion = useReducedMotion();
+  const [shown, setShown] = useState(value);
+  const animated = useRef(new Animated.Value(value)).current;
+
+  useEffect(() => {
+    if (reduceMotion) {
+      animated.setValue(value);
+      setShown(value);
+      return;
+    }
+    const id = animated.addListener(({ value: current }) => setShown(round2(current)));
+    Animated.timing(animated, { toValue: value, duration: COUNT_DURATION, useNativeDriver: false }).start();
+    return () => animated.removeListener(id);
+  }, [value, reduceMotion, animated]);
+
+  return <Amount value={shown} {...props} />;
 }

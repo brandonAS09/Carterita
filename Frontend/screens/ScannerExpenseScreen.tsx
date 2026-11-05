@@ -2,39 +2,31 @@ import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Image,
   Modal,
-  Pressable,
   Switch,
   Linking,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import {
-  AlertCircle,
-  Camera,
-  CameraOff,
-  ChevronLeft,
-  Images,
-  PenLine,
-  RotateCcw,
-  ScanLine,
-  Settings,
-} from 'lucide-react-native';
+import { Camera, CameraOff, Images, PenLine, RotateCcw, ScanLine, Settings, type LucideIcon } from 'lucide-react-native';
 import ReceiptOcr from '../modules/receipt-ocr';
-import { COLORS, SIZES } from '../src/theme/theme';
+import { useTheme, useThemedStyles } from '../src/theme/ThemeProvider';
+import { RADIUS, SPACING, ThemeColors, TYPOGRAPHY } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
 import { budgetService, Presupuesto } from '../src/services/budgetService';
 import { transactionService, Categoria } from '../src/services/transactionService';
 import { isTicketDateUsable, parseReceipt, ParsedReceipt } from '../src/utils/receiptParser';
 import { parseDateKey, toLocalDateKey } from '../src/utils/dateUtils';
 import ExpenseReviewForm, { ExpenseReviewValues } from '../src/components/ExpenseReviewForm';
+import HeroHeader from '../src/components/ui/HeroHeader';
+import Button from '../src/components/ui/Button';
+import Card from '../src/components/ui/Card';
+import { Banner } from '../src/components/ui/Form';
 
 /**
  * F04 - Registro de Gasto por Escáner.
@@ -58,6 +50,8 @@ const formatTicketDate = (key: string) =>
   parseDateKey(key).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' });
 
 export default function ScannerExpenseScreen({ navigation }: any) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [phase, setPhase] = useState<Phase>('checking');
   const [userId, setUserId] = useState<number | null>(null);
   const [budget, setBudget] = useState<Presupuesto | null>(null);
@@ -172,25 +166,25 @@ export default function ScannerExpenseScreen({ navigation }: any) {
   // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
-  const galleryButton = (
-    <TouchableOpacity style={styles.secondaryButton} onPress={pickFromGallery} activeOpacity={0.8}>
-      <Images color={COLORS.secondary} size={18} />
-      <Text style={styles.secondaryButtonText}>Elegir de la galería</Text>
-    </TouchableOpacity>
-  );
+  const galleryButton = <Button label="Elegir de la galería" variant="secondary" icon={Images} onPress={pickFromGallery} />;
+  const manualButton = <Button label="Registrar manualmente" variant="secondary" icon={PenLine} onPress={goManual} />;
 
-  const manualButton = (
-    <TouchableOpacity style={styles.secondaryButton} onPress={goManual} activeOpacity={0.8}>
-      <PenLine color={COLORS.secondary} size={18} />
-      <Text style={styles.secondaryButtonText}>Registrar manualmente</Text>
-    </TouchableOpacity>
+  const renderBlock = (Icon: LucideIcon, iconColor: string, title: string, message: string, actions: React.ReactNode) => (
+    <View style={styles.centerBlock}>
+      <View style={styles.blockIcon}>
+        <Icon color={iconColor} size={36} />
+      </View>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.message}>{message}</Text>
+      {notice && <Banner tone="error" message={notice} />}
+      <View style={styles.actions}>{actions}</View>
+    </View>
   );
 
   const photoThumbnail = photoUri && (
-    <TouchableOpacity
+    <Pressable
       style={styles.photoCard}
       onPress={() => setIsPhotoOpen(true)}
-      activeOpacity={0.8}
       accessibilityRole="imagebutton"
       accessibilityLabel="Ampliar la foto del ticket"
     >
@@ -201,7 +195,7 @@ export default function ScannerExpenseScreen({ navigation }: any) {
         </Text>
         <Text style={styles.photoHint}>Toca la foto para ampliarla</Text>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 
   const renderContent = () => {
@@ -209,49 +203,36 @@ export default function ScannerExpenseScreen({ navigation }: any) {
       case 'checking':
         return (
           <View style={styles.centerBlock}>
-            <ActivityIndicator size="large" color={COLORS.secondary} />
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         );
 
       case 'needs-dev-build':
-        return (
-          <View style={styles.centerBlock}>
-            <View style={styles.blockIcon}>
-              <CameraOff color={COLORS.error} size={36} />
-            </View>
-            <Text style={styles.title}>Escáner no disponible</Text>
-            <Text style={styles.message}>
-              El escáner necesita la versión de desarrollo de Carterita. No está disponible en Expo Go.
-            </Text>
-            <View style={styles.actions}>{manualButton}</View>
-          </View>
+        return renderBlock(
+          CameraOff,
+          colors.error,
+          'Escáner no disponible',
+          'El escáner necesita la versión de desarrollo de Carterita. No está disponible en Expo Go.',
+          manualButton
         );
 
       case 'permission-denied':
-        return (
-          <View style={styles.centerBlock}>
-            <View style={styles.blockIcon}>
-              <CameraOff color={COLORS.error} size={36} />
-            </View>
-            <Text style={styles.title}>Permiso de cámara</Text>
-            <Text style={styles.message}>
-              Necesitamos la cámara para fotografiar tus tickets. También puedes elegir una foto que ya tengas.
-            </Text>
-            <View style={styles.actions}>
-              {galleryButton}
-              <TouchableOpacity style={styles.primaryButton} onPress={() => Linking.openSettings()} activeOpacity={0.8}>
-                <Settings color={COLORS.background} size={18} />
-                <Text style={styles.primaryButtonText}>Abrir ajustes</Text>
-              </TouchableOpacity>
-              {manualButton}
-            </View>
-          </View>
+        return renderBlock(
+          CameraOff,
+          colors.error,
+          'Permiso de cámara',
+          'Necesitamos la cámara para fotografiar tus tickets. También puedes elegir una foto que ya tengas.',
+          <>
+            <Button label="Abrir ajustes" icon={Settings} onPress={() => Linking.openSettings()} />
+            {galleryButton}
+            {manualButton}
+          </>
         );
 
       case 'processing':
         return (
-          <View style={styles.centerBlock}>
-            <ActivityIndicator size="large" color={COLORS.secondary} />
+          <View style={styles.centerBlock} accessibilityLiveRegion="polite">
+            <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.title}>Leyendo tu ticket…</Text>
           </View>
         );
@@ -259,18 +240,10 @@ export default function ScannerExpenseScreen({ navigation }: any) {
       case 'no-text':
         return (
           <View style={styles.centerBlock}>
-            <View style={styles.warningCard}>
-              <AlertCircle color={COLORS.error} size={20} />
-              <Text style={styles.warningText}>{MSG_NO_TEXT}</Text>
-            </View>
+            <Banner tone="error" message={MSG_NO_TEXT} />
             <View style={styles.actions}>
-              <TouchableOpacity style={styles.primaryButton} onPress={takePhoto} activeOpacity={0.8}>
-                <RotateCcw color={COLORS.background} size={18} />
-                <Text style={styles.primaryButtonText}>Tomar otra foto</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => setPhase('review')} activeOpacity={0.8}>
-                <Text style={styles.secondaryButtonText}>Continuar sin datos</Text>
-              </TouchableOpacity>
+              <Button label="Tomar otra foto" icon={RotateCcw} onPress={takePhoto} />
+              <Button label="Continuar sin datos" variant="secondary" onPress={() => setPhase('review')} />
             </View>
           </View>
         );
@@ -291,73 +264,50 @@ export default function ScannerExpenseScreen({ navigation }: any) {
             header={photoThumbnail}
             extra={
               ticketDate && (
-                <View style={styles.dateCard}>
+                <Card style={styles.dateCard}>
                   <Text style={styles.dateText}>Registrar con la fecha del ticket ({formatTicketDate(ticketDate)})</Text>
                   <Switch
                     value={useTicketDate}
                     onValueChange={setUseTicketDate}
-                    trackColor={{ false: COLORS.disabledBg, true: COLORS.primary }}
-                    thumbColor={useTicketDate ? COLORS.secondary : COLORS.textSecondary}
+                    accessibilityLabel="Registrar con la fecha del ticket"
+                    trackColor={{ false: colors.surfaceVariant, true: colors.primary }}
+                    thumbColor={useTicketDate ? colors.onPrimary : colors.border}
                   />
-                </View>
+                </Card>
               )
             }
             footer={(isSaving) => (
-              <TouchableOpacity
-                style={[styles.secondaryButton, styles.footerButton]}
+              <Button
+                label="Tomar otra foto"
+                variant="secondary"
+                icon={RotateCcw}
                 onPress={takePhoto}
-                activeOpacity={0.8}
                 disabled={isSaving}
-              >
-                <RotateCcw color={COLORS.secondary} size={18} />
-                <Text style={styles.secondaryButtonText}>Tomar otra foto</Text>
-              </TouchableOpacity>
+                style={styles.footerButton}
+              />
             )}
             onSave={handleSave}
           />
         );
 
       default: // choose
-        return (
-          <View style={styles.centerBlock}>
-            <View style={styles.blockIcon}>
-              <ScanLine color={COLORS.secondary} size={36} />
-            </View>
-            <Text style={styles.title}>Escanea tu ticket</Text>
-            <Text style={styles.message}>
-              Busca buena luz y recorta la foto para que solo se vea el ticket. La lectura se hace en tu teléfono.
-            </Text>
-            {notice && (
-              <View style={styles.warningCard}>
-                <AlertCircle color={COLORS.error} size={20} />
-                <Text style={styles.warningText}>{notice}</Text>
-              </View>
-            )}
-            <View style={styles.actions}>
-              <TouchableOpacity style={styles.primaryButton} onPress={takePhoto} activeOpacity={0.8}>
-                <Camera color={COLORS.background} size={18} />
-                <Text style={styles.primaryButtonText}>Tomar foto</Text>
-              </TouchableOpacity>
-              {galleryButton}
-            </View>
-          </View>
+        return renderBlock(
+          ScanLine,
+          colors.primary,
+          'Escanea tu ticket',
+          'Busca buena luz y recorta la foto para que solo se vea el ticket. La lectura se hace en tu teléfono.',
+          <>
+            <Button label="Tomar foto" icon={Camera} onPress={takePhoto} />
+            {galleryButton}
+          </>
         );
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.navBar}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <ChevronLeft color={COLORS.text} size={24} />
-          </TouchableOpacity>
-          <Text style={styles.navTitle}>{phase === 'review' ? 'Confirmar Gasto' : 'Escanear Ticket'}</Text>
-          <View style={{ width: 40 }} />
-        </View>
-        {renderContent()}
-      </KeyboardAvoidingView>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.screen}>
+      <HeroHeader title={phase === 'review' ? 'Confirmar Gasto' : 'Escanear Ticket'} onBack={() => navigation.goBack()} />
+      {renderContent()}
 
       {photoUri && (
         <Modal visible={isPhotoOpen} transparent animationType="fade" onRequestClose={() => setIsPhotoOpen(false)}>
@@ -370,118 +320,41 @@ export default function ScannerExpenseScreen({ navigation }: any) {
           </Pressable>
         </Modal>
       )}
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
-  navBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SIZES.spacing.md,
-    paddingVertical: SIZES.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.primary,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: SIZES.radius.button,
-    backgroundColor: COLORS.tertiary,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  navTitle: { color: COLORS.text, fontSize: SIZES.body1, fontWeight: '700', letterSpacing: 0.3 },
-  centerBlock: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SIZES.spacing.lg,
-    gap: SIZES.spacing.sm,
-  },
-  blockIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.tertiary,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: { color: COLORS.text, fontSize: SIZES.h2 - 4, fontWeight: 'bold', textAlign: 'center' },
-  message: { color: COLORS.textSecondary, fontSize: SIZES.body2, textAlign: 'center', lineHeight: 20 },
-  actions: { alignSelf: 'stretch', gap: SIZES.spacing.sm, marginTop: SIZES.spacing.md },
-  warningCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SIZES.spacing.xs,
-    backgroundColor: 'rgba(207, 102, 121, 0.15)',
-    borderWidth: 1,
-    borderColor: COLORS.error,
-    borderRadius: SIZES.radius.button,
-    padding: SIZES.spacing.sm,
-  },
-  warningText: { color: COLORS.error, fontSize: SIZES.body2, flex: 1, lineHeight: 20 },
-  primaryButton: {
-    flexDirection: 'row',
-    gap: SIZES.spacing.xs,
-    backgroundColor: COLORS.secondary,
-    borderRadius: SIZES.radius.button,
-    minHeight: 52,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  primaryButtonText: { color: COLORS.background, fontSize: SIZES.body1, fontWeight: 'bold' },
-  secondaryButton: {
-    flexDirection: 'row',
-    gap: SIZES.spacing.xs,
-    borderWidth: 2,
-    borderColor: COLORS.secondary,
-    borderRadius: SIZES.radius.button,
-    minHeight: 52,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  secondaryButtonText: { color: COLORS.secondary, fontSize: SIZES.body1, fontWeight: '600' },
-  footerButton: { marginTop: SIZES.spacing.sm },
-  photoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.spacing.sm,
-    backgroundColor: 'rgba(19, 92, 58, 0.25)',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderRadius: SIZES.radius.card,
-    padding: SIZES.spacing.sm,
-    marginBottom: SIZES.spacing.md,
-  },
-  photo: { width: 64, height: 84, borderRadius: SIZES.radius.button, backgroundColor: COLORS.background },
-  photoText: { flex: 1 },
-  photoTitle: { color: COLORS.text, fontSize: SIZES.body2, fontWeight: '600' },
-  photoHint: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
-  photoModal: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.92)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: SIZES.spacing.md,
-  },
-  photoLarge: { width: '100%', height: '100%' },
-  dateCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.spacing.sm,
-    backgroundColor: COLORS.tertiary,
-    borderRadius: SIZES.radius.card,
-    padding: SIZES.spacing.md,
-    marginBottom: SIZES.spacing.md,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-  },
-  dateText: { color: COLORS.text, fontSize: SIZES.body2, flex: 1, lineHeight: 20 },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
+    centerBlock: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.md, gap: SPACING.sm },
+    blockIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: colors.surfaceVariant,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    title: { ...TYPOGRAPHY.h3, color: colors.text, textAlign: 'center' },
+    message: { ...TYPOGRAPHY.body2, color: colors.textSecondary, textAlign: 'center' },
+    actions: { alignSelf: 'stretch', gap: SPACING.sm, marginTop: SPACING.xs },
+    footerButton: { marginTop: SPACING.sm },
+    photoCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      backgroundColor: colors.surfaceVariant,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.sm,
+      marginBottom: SPACING.sm,
+    },
+    photo: { width: 64, height: 84, borderRadius: RADIUS.sm, backgroundColor: colors.surface },
+    photoText: { flex: 1 },
+    photoTitle: { ...TYPOGRAPHY.body2Strong, color: colors.text },
+    photoHint: { ...TYPOGRAPHY.caption, color: colors.textSecondary, marginTop: 4 },
+    photoModal: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'center', alignItems: 'center', padding: SPACING.md },
+    photoLarge: { width: '100%', height: '100%' },
+    dateCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.sm },
+    dateText: { ...TYPOGRAPHY.body2, color: colors.text, flex: 1 },
+  });

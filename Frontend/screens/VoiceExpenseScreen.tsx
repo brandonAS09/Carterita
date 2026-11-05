@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,27 +11,20 @@ import {
   Easing,
   Linking,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  ChevronLeft,
-  Mic,
-  Square,
-  AlertCircle,
-  MicOff,
-  Settings,
-  PenLine,
-  RotateCcw,
-  Info,
-} from 'lucide-react-native';
-import { COLORS, SIZES } from '../src/theme/theme';
+import { Mic, Square, MicOff, Settings, PenLine, RotateCcw, Info } from 'lucide-react-native';
+import { useTheme, useThemedStyles } from '../src/theme/ThemeProvider';
+import { RADIUS, SPACING, ThemeColors, TYPOGRAPHY } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
 import { budgetService, Presupuesto } from '../src/services/budgetService';
 import { transactionService, Categoria } from '../src/services/transactionService';
 import { voiceRecognitionService, RecognitionConfig } from '../src/services/voiceRecognitionService';
 import { parseVoiceExpense, ParsedVoiceExpense } from '../src/utils/voiceExpenseParser';
+import { useReducedMotion } from '../src/utils/useReducedMotion';
 import ExpenseReviewForm, { ExpenseReviewValues } from '../src/components/ExpenseReviewForm';
+import HeroHeader from '../src/components/ui/HeroHeader';
+import Button from '../src/components/ui/Button';
+import { Banner } from '../src/components/ui/Form';
 
 /**
  * F03 - Registro de Gasto por Voz.
@@ -55,6 +48,9 @@ const ONLINE_NOTICE_KEY = 'carterita.voiceOnlineNoticeShown';
 const EXAMPLES = ['Gasté 85 pesos en gasolina', 'Un café de 45', 'Uber al trabajo por 120'];
 
 export default function VoiceExpenseScreen({ navigation }: any) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const reduceMotion = useReducedMotion();
   const [phase, setPhase] = useState<Phase>('checking');
   const [userId, setUserId] = useState<number | null>(null);
   const [budget, setBudget] = useState<Presupuesto | null>(null);
@@ -251,7 +247,7 @@ export default function VoiceExpenseScreen({ navigation }: any) {
   // ─────────────────────────────────────────────
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (phase !== 'listening') {
+    if (phase !== 'listening' || reduceMotion) {
       pulse.stopAnimation();
       pulse.setValue(0);
       return;
@@ -261,7 +257,7 @@ export default function VoiceExpenseScreen({ navigation }: any) {
     );
     loop.start();
     return () => loop.stop();
-  }, [phase, pulse]);
+  }, [phase, pulse, reduceMotion]);
 
   const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.6] });
   const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] });
@@ -269,61 +265,46 @@ export default function VoiceExpenseScreen({ navigation }: any) {
   // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
-  const renderBlocked = (icon: React.ReactNode, title: string, message: string, actions: React.ReactNode) => (
+  const renderBlocked = (title: string, message: string, actions: React.ReactNode) => (
     <View style={styles.centerBlock}>
-      <View style={styles.blockedIcon}>{icon}</View>
+      <View style={styles.blockedIcon}>
+        <MicOff color={colors.error} size={36} />
+      </View>
       <Text style={styles.blockedTitle}>{title}</Text>
       <Text style={styles.blockedMessage}>{message}</Text>
       <View style={styles.blockedActions}>{actions}</View>
     </View>
   );
 
-  const manualButton = (
-    <TouchableOpacity style={styles.secondaryButton} onPress={goManual} activeOpacity={0.8}>
-      <PenLine color={COLORS.secondary} size={18} />
-      <Text style={styles.secondaryButtonText}>Registrar manualmente</Text>
-    </TouchableOpacity>
-  );
+  const manualButton = <Button label="Registrar manualmente" variant="secondary" icon={PenLine} onPress={goManual} />;
 
   const renderContent = () => {
     switch (phase) {
       case 'checking':
         return (
           <View style={styles.centerBlock}>
-            <ActivityIndicator size="large" color={COLORS.secondary} />
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         );
 
       case 'needs-dev-build':
         return renderBlocked(
-          <MicOff color={COLORS.error} size={36} />,
           'Dictado no disponible',
           'El dictado por voz necesita la versión de desarrollo de Carterita. No está disponible en Expo Go.',
           manualButton
         );
 
       case 'unavailable': // Escenario 7
-        return renderBlocked(
-          <MicOff color={COLORS.error} size={36} />,
-          'Dictado no disponible',
-          'Tu dispositivo no tiene reconocimiento de voz disponible.',
-          manualButton
-        );
+        return renderBlocked('Dictado no disponible', 'Tu dispositivo no tiene reconocimiento de voz disponible.', manualButton);
 
       case 'permission-denied': // Escenario 2
         return renderBlocked(
-          <MicOff color={COLORS.error} size={36} />,
           'Permiso de micrófono',
           'Se necesita acceso al micrófono para el dictado por voz.',
           <>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => Linking.openSettings()} activeOpacity={0.8}>
-              <Settings color={COLORS.background} size={18} />
-              <Text style={styles.primaryButtonText}>Abrir ajustes</Text>
-            </TouchableOpacity>
+            <Button label="Abrir ajustes" icon={Settings} onPress={() => Linking.openSettings()} />
             {manualButton}
-            <TouchableOpacity onPress={startListening} activeOpacity={0.8} style={styles.linkButton}>
-              <Text style={styles.linkText}>Ya di el permiso, intentar de nuevo</Text>
-            </TouchableOpacity>
+            <Button label="Ya di el permiso, intentar de nuevo" variant="text" onPress={startListening} />
           </>
         );
 
@@ -331,18 +312,10 @@ export default function VoiceExpenseScreen({ navigation }: any) {
         return (
           <View style={styles.centerBlock}>
             {!!parsed?.transcripcion && <Text style={styles.heardText}>"{parsed.transcripcion}"</Text>}
-            <View style={styles.warningCard}>
-              <AlertCircle color={COLORS.error} size={20} />
-              <Text style={styles.warningText}>{MSG_NO_AMOUNT}</Text>
-            </View>
+            <Banner tone="error" message={MSG_NO_AMOUNT} />
             <View style={styles.blockedActions}>
-              <TouchableOpacity style={styles.primaryButton} onPress={startListening} activeOpacity={0.8}>
-                <RotateCcw color={COLORS.background} size={18} />
-                <Text style={styles.primaryButtonText}>Dictar de nuevo</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => setPhase('review')} activeOpacity={0.8}>
-                <Text style={styles.secondaryButtonText}>Continuar</Text>
-              </TouchableOpacity>
+              <Button label="Dictar de nuevo" icon={RotateCcw} onPress={startListening} />
+              <Button label="Continuar" variant="secondary" onPress={() => setPhase('review')} />
             </View>
           </View>
         );
@@ -368,25 +341,26 @@ export default function VoiceExpenseScreen({ navigation }: any) {
           {isListening && (
             <Animated.View style={[styles.micRing, { transform: [{ scale: ringScale }], opacity: ringOpacity }]} />
           )}
-          <TouchableOpacity
+          <Pressable
             style={[styles.micButton, isListening && styles.micButtonActive]}
             onPress={handleMicPress}
-            activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel={isListening ? 'Detener dictado' : 'Iniciar dictado'}
           >
             {isListening ? (
-              <Square color={COLORS.background} size={36} fill={COLORS.background} />
+              <Square color={colors.onPrimary} size={36} fill={colors.onPrimary} />
             ) : (
-              <Mic color={COLORS.background} size={48} />
+              <Mic color={colors.onAccent} size={48} />
             )}
-          </TouchableOpacity>
+          </Pressable>
         </View>
 
         {/* Transcripción en vivo */}
         <View style={styles.transcriptBox}>
           {partial ? (
-            <Text style={styles.transcriptText}>{partial}</Text>
+            <Text style={styles.transcriptText} accessibilityLiveRegion="polite">
+              {partial}
+            </Text>
           ) : (
             <Text style={styles.transcriptPlaceholder}>
               {isListening ? 'Habla ahora…' : 'Aquí aparecerá lo que digas'}
@@ -394,16 +368,11 @@ export default function VoiceExpenseScreen({ navigation }: any) {
           )}
         </View>
 
-        {notice && (
-          <View style={styles.noticeRow}>
-            <AlertCircle color={COLORS.error} size={16} />
-            <Text style={styles.noticeText}>{notice}</Text>
-          </View>
-        )}
+        {notice && <Banner tone="error" message={notice} style={styles.notice} />}
 
         {showOnlineNotice && (
           <View style={styles.infoRow}>
-            <Info color={COLORS.textSecondary} size={14} />
+            <Info color={colors.textSecondary} size={14} />
             <Text style={styles.infoText}>
               Este dispositivo usa el reconocimiento de voz del sistema, que puede requerir internet. Tus gastos se
               siguen guardando solo en tu teléfono.
@@ -413,7 +382,7 @@ export default function VoiceExpenseScreen({ navigation }: any) {
 
         {!isListening && (
           <View style={styles.examples}>
-            <Text style={styles.examplesTitle}>PRUEBA DICIENDO</Text>
+            <Text style={styles.examplesTitle}>Prueba diciendo</Text>
             {EXAMPLES.map((e) => (
               <Text key={e} style={styles.exampleText}>
                 "{e}"
@@ -439,205 +408,94 @@ export default function VoiceExpenseScreen({ navigation }: any) {
       header={
         !!parsed?.transcripcion && (
           <View style={styles.heardCard}>
-            <Text style={styles.heardLabel}>ESCUCHÉ</Text>
+            <Text style={styles.heardLabel}>Escuché</Text>
             <Text style={styles.heardText}>"{parsed.transcripcion}"</Text>
           </View>
         )
       }
       footer={(isSaving) => (
-        <TouchableOpacity
-          style={[styles.secondaryButton, { marginTop: SIZES.spacing.sm }]}
+        <Button
+          label="Dictar de nuevo"
+          variant="secondary"
+          icon={RotateCcw}
           onPress={startListening}
-          activeOpacity={0.8}
           disabled={isSaving}
-        >
-          <RotateCcw color={COLORS.secondary} size={18} />
-          <Text style={styles.secondaryButtonText}>Dictar de nuevo</Text>
-        </TouchableOpacity>
+          style={styles.footerButton}
+        />
       )}
       onSave={handleSave}
     />
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.navBar}>
-          <TouchableOpacity style={styles.backButton} onPress={goBack} activeOpacity={0.8}>
-            <ChevronLeft color={COLORS.text} size={24} />
-          </TouchableOpacity>
-          <Text style={styles.navTitle}>{phase === 'review' ? 'Confirmar Gasto' : 'Gasto por Voz'}</Text>
-          <View style={{ width: 40 }} />
-        </View>
-        {renderContent()}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.screen}>
+      <HeroHeader title={phase === 'review' ? 'Confirmar Gasto' : 'Gasto por Voz'} onBack={goBack} />
+      {renderContent()}
+    </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
-  // ── Navbar ──
-  navBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SIZES.spacing.md,
-    paddingVertical: SIZES.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.primary,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: SIZES.radius.button,
-    backgroundColor: COLORS.tertiary,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  navTitle: { color: COLORS.text, fontSize: SIZES.body1, fontWeight: '700', letterSpacing: 0.3 },
-  // ── Grabadora ──
-  recorder: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: SIZES.spacing.lg,
-    paddingTop: SIZES.spacing.xl,
-  },
-  recorderTitle: { color: COLORS.text, fontSize: SIZES.h2, fontWeight: 'bold' },
-  recorderSubtitle: {
-    color: COLORS.textSecondary,
-    fontSize: SIZES.body2,
-    marginTop: SIZES.spacing.xs,
-    textAlign: 'center',
-  },
-  micArea: {
-    width: 200,
-    height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: SIZES.spacing.xl,
-  },
-  micRing: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: COLORS.secondary,
-  },
-  micButton: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: COLORS.secondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  micButtonActive: { backgroundColor: COLORS.error },
-  transcriptBox: {
-    alignSelf: 'stretch',
-    minHeight: 72,
-    backgroundColor: COLORS.tertiary,
-    borderRadius: SIZES.radius.card,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    padding: SIZES.spacing.md,
-    justifyContent: 'center',
-  },
-  transcriptText: { color: COLORS.text, fontSize: SIZES.body1, textAlign: 'center' },
-  transcriptPlaceholder: { color: COLORS.textSecondary, fontSize: SIZES.body2, textAlign: 'center', fontStyle: 'italic' },
-  noticeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.spacing.xs,
-    marginTop: SIZES.spacing.md,
-    alignSelf: 'stretch',
-  },
-  noticeText: { color: COLORS.error, fontSize: SIZES.body2, flex: 1 },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-    marginTop: SIZES.spacing.sm,
-    alignSelf: 'stretch',
-  },
-  infoText: { color: COLORS.textSecondary, fontSize: 12, flex: 1, lineHeight: 16 },
-  examples: { marginTop: SIZES.spacing.lg, alignItems: 'center', gap: 4 },
-  examplesTitle: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
-    letterSpacing: 1,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  exampleText: { color: COLORS.textSecondary, fontSize: SIZES.body2, fontStyle: 'italic' },
-  // ── Estados bloqueados ──
-  centerBlock: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SIZES.spacing.lg,
-    gap: SIZES.spacing.sm,
-  },
-  blockedIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.tertiary,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  blockedTitle: { color: COLORS.text, fontSize: SIZES.h2 - 4, fontWeight: 'bold', textAlign: 'center' },
-  blockedMessage: { color: COLORS.textSecondary, fontSize: SIZES.body2, textAlign: 'center', lineHeight: 20 },
-  blockedActions: { alignSelf: 'stretch', gap: SIZES.spacing.sm, marginTop: SIZES.spacing.md },
-  warningCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SIZES.spacing.xs,
-    backgroundColor: 'rgba(207, 102, 121, 0.15)',
-    borderWidth: 1,
-    borderColor: COLORS.error,
-    borderRadius: SIZES.radius.button,
-    padding: SIZES.spacing.sm,
-  },
-  warningText: { color: COLORS.error, fontSize: SIZES.body2, flex: 1, lineHeight: 20 },
-  // ── Botones ──
-  primaryButton: {
-    flexDirection: 'row',
-    gap: SIZES.spacing.xs,
-    backgroundColor: COLORS.secondary,
-    borderRadius: SIZES.radius.button,
-    minHeight: 52,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  primaryButtonText: { color: COLORS.background, fontSize: SIZES.body1, fontWeight: 'bold' },
-  secondaryButton: {
-    flexDirection: 'row',
-    gap: SIZES.spacing.xs,
-    borderWidth: 2,
-    borderColor: COLORS.secondary,
-    borderRadius: SIZES.radius.button,
-    minHeight: 52,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  secondaryButtonText: { color: COLORS.secondary, fontSize: SIZES.body1, fontWeight: '600' },
-  linkButton: { alignItems: 'center', paddingVertical: SIZES.spacing.xs },
-  linkText: { color: COLORS.textSecondary, fontSize: SIZES.body2, textDecorationLine: 'underline' },
-  // ── Vista previa ──
-  heardCard: {
-    backgroundColor: 'rgba(19, 92, 58, 0.25)',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderRadius: SIZES.radius.card,
-    padding: SIZES.spacing.md,
-    marginBottom: SIZES.spacing.md,
-  },
-  heardLabel: { color: COLORS.textSecondary, fontSize: 11, letterSpacing: 1, fontWeight: '700', marginBottom: 4 },
-  heardText: { color: COLORS.text, fontSize: SIZES.body1, fontStyle: 'italic', textAlign: 'center' },
-});
+const MIC_SIZE = 120;
+
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
+    recorder: { flex: 1, alignItems: 'center', paddingHorizontal: SPACING.md },
+    recorderTitle: { ...TYPOGRAPHY.h2, color: colors.text },
+    recorderSubtitle: { ...TYPOGRAPHY.body2, color: colors.textSecondary, marginTop: 4, textAlign: 'center' },
+    micArea: { width: 200, height: 200, justifyContent: 'center', alignItems: 'center', marginVertical: SPACING.sm },
+    micRing: {
+      position: 'absolute',
+      width: MIC_SIZE,
+      height: MIC_SIZE,
+      borderRadius: MIC_SIZE / 2,
+      backgroundColor: colors.primary,
+    },
+    micButton: {
+      width: MIC_SIZE,
+      height: MIC_SIZE,
+      borderRadius: MIC_SIZE / 2,
+      backgroundColor: colors.accent,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    micButtonActive: { backgroundColor: colors.primary },
+    transcriptBox: {
+      alignSelf: 'stretch',
+      minHeight: 72,
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      justifyContent: 'center',
+    },
+    transcriptText: { ...TYPOGRAPHY.body1, color: colors.text, textAlign: 'center' },
+    transcriptPlaceholder: { ...TYPOGRAPHY.body2, color: colors.textSecondary, textAlign: 'center' },
+    notice: { alignSelf: 'stretch', marginTop: SPACING.sm, marginBottom: 0 },
+    infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: SPACING.sm, alignSelf: 'stretch' },
+    infoText: { ...TYPOGRAPHY.caption, color: colors.textSecondary, flex: 1 },
+    examples: { marginTop: SPACING.md, alignItems: 'center', gap: 4 },
+    examplesTitle: { ...TYPOGRAPHY.body2Strong, color: colors.textSecondary },
+    exampleText: { ...TYPOGRAPHY.body2, color: colors.textSecondary },
+    centerBlock: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.md, gap: SPACING.sm },
+    blockedIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: colors.surfaceVariant,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    blockedTitle: { ...TYPOGRAPHY.h3, color: colors.text, textAlign: 'center' },
+    blockedMessage: { ...TYPOGRAPHY.body2, color: colors.textSecondary, textAlign: 'center' },
+    blockedActions: { alignSelf: 'stretch', gap: SPACING.sm, marginTop: SPACING.xs },
+    footerButton: { marginTop: SPACING.sm },
+    heardCard: {
+      backgroundColor: colors.surfaceVariant,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      marginBottom: SPACING.sm,
+      gap: 4,
+    },
+    heardLabel: { ...TYPOGRAPHY.caption, color: colors.textSecondary },
+    heardText: { ...TYPOGRAPHY.body1, color: colors.text, textAlign: 'center' },
+  });

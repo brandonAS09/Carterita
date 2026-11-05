@@ -61,8 +61,8 @@ export default function HeroHeader({ variant = 'compact', title, onBack, right, 
               </LinearGradient>
             </Defs>
             <Rect width={size.width} height={size.height} fill="url(#hero)" />
-            <Path d={wavePath(size.width, size.height, zone, [0.8, 1.05, 0.45, 0.7])} fill="#FFFFFF" fillOpacity={0.08} />
-            <Path d={wavePath(size.width, size.height, zone, [0.6, 0.95, 0.3, 0.75])} fill="#FFFFFF" fillOpacity={0.12} />
+            <Path d={wavePath(size.width, size.height, zone, [0.8, 1.05, 0.45, 0.7])} fill={colors.onHero} fillOpacity={0.08} />
+            <Path d={wavePath(size.width, size.height, zone, [0.6, 0.95, 0.3, 0.75])} fill={colors.onHero} fillOpacity={0.12} />
             <Path d={wavePath(size.width, size.height, zone, [0.3, 0.75, 0.05, 0.45])} fill={colors.background} />
           </Svg>
         </View>

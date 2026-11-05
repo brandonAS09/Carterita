@@ -79,7 +79,15 @@ export function QuickAction({ label, icon: Icon, onPress }: { label: string; ico
       <View style={themed.quickIcon}>
         <Icon color={colors.primary} size={24} />
       </View>
-      <Text style={[TYPOGRAPHY.body2Strong, { color: colors.text }]}>{label}</Text>
+      {/* Con texto grande reduce su tamaño en lugar de partir la palabra */}
+      <Text
+        style={[TYPOGRAPHY.body2Strong, { color: colors.text }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
