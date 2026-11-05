@@ -48,6 +48,13 @@ export const getLocalRangeISOForKeys = (fromKey: string, toKey: string): { start
   end: parseDateKey(addDaysToKey(toKey, 1)).toISOString(),
 });
 
+/** Mediodía local de una fecha 'YYYY-MM-DD' en ISO UTC: queda en ese día sin importar la zona horaria. */
+export const getLocalNoonISO = (dateKey: string): string => {
+  const d = parseDateKey(dateKey);
+  d.setHours(12);
+  return d.toISOString();
+};
+
 /**
  * Rango [start, end) en ISO UTC que cubre el día local completo.
  * Sirve para consultar columnas guardadas con `toISOString()`:

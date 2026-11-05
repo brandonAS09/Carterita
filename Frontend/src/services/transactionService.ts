@@ -1,5 +1,5 @@
 import { getDb } from '../database/initDb';
-import { getLocalDayRangeISO, getLocalRangeISOForKeys } from '../utils/dateUtils';
+import { getLocalDayRangeISO, getLocalNoonISO, getLocalRangeISOForKeys } from '../utils/dateUtils';
 
 export interface Categoria {
   id: number;
@@ -73,16 +73,17 @@ export const transactionService = {
     return await db.getAllAsync<Categoria>('SELECT * FROM Categoria ORDER BY nombre ASC');
   },
 
-  // Registrar un nuevo gasto (F02)
+  // Registrar un nuevo gasto (F02). `fechaKey`: día local 'YYYY-MM-DD' si no es de hoy (F04, D9)
   addTransaction: async (
     userId: number,
     monto: number,
     concepto: string,
     categoriaId: number | null,
-    origen: OrigenRegistro = 'Manual'
+    origen: OrigenRegistro = 'Manual',
+    fechaKey?: string
   ): Promise<Transaccion> => {
     const db = await getDb();
-    const fecha = new Date().toISOString();
+    const fecha = fechaKey ? getLocalNoonISO(fechaKey) : new Date().toISOString();
 
     const result = await db.runAsync(
       `INSERT INTO Transaccion (usuario_id, monto, fecha, concepto, categoria_id, origen_registro)

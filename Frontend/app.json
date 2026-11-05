@@ -41,6 +41,14 @@
             "com.google.android.as"
           ]
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Carterita usa la cámara para que escanees tus tickets y registres tus gastos.",
+          "photosPermission": "Carterita accede a tus fotos para que elijas la imagen de un ticket.",
+          "microphonePermission": "Carterita usa el micrófono para que registres tus gastos dictándolos."
+        }
       ]
     ]
   }

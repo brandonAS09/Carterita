@@ -341,6 +341,9 @@ const detectCategory = (tokens: Token[]): string | null => {
   return null;
 };
 
+/** Categoría sugerida para un texto libre (la usa también el parser de tickets). */
+export const suggestCategory = (text: string): string | null => detectCategory(tokenize(text));
+
 const MAX_CONCEPTO = 80;
 
 const buildConcept = (tokens: Token[], amount: AmountCandidate | null): string => {

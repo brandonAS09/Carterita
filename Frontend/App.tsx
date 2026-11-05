@@ -10,6 +10,7 @@ import MenuScreen from './screens/MenuScreen';
 import BudgetSetupScreen from './screens/BudgetSetupScreen';
 import AddExpenseScreen from './screens/AddExpenseScreen';
 import VoiceExpenseScreen from './screens/VoiceExpenseScreen';
+import ScannerExpenseScreen from './screens/ScannerExpenseScreen';
 import GoalsScreen from './screens/GoalsScreen';
 import CreateGoalScreen from './screens/CreateGoalScreen';
 import { initDatabase } from './src/database/initDb';
@@ -101,6 +102,7 @@ export default function App() {
           <Stack.Screen name="Menu" component={MainTabs} />
           <Stack.Screen name="AddExpense" component={AddExpenseScreen} />
           <Stack.Screen name="VoiceExpense" component={VoiceExpenseScreen} />
+          <Stack.Screen name="ScannerExpense" component={ScannerExpenseScreen} />
           <Stack.Screen name="CreateGoal" component={CreateGoalScreen} />
         </Stack.Navigator>
       </NavigationContainer>

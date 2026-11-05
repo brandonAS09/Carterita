@@ -350,13 +350,12 @@ export default function MenuScreen({ navigation }: any) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionButton, styles.cameraButton, { opacity: 0.5 }]}
+            style={[styles.actionButton, styles.cameraButton]}
             activeOpacity={0.8}
-            disabled
+            onPress={() => navigation.navigate('ScannerExpense')}
           >
             <Camera color={COLORS.background} size={26} />
             <Text style={styles.actionButtonText}>Escanear</Text>
-            <Text style={styles.actionButtonBadge}>Sprint 3</Text>
           </TouchableOpacity>
 
           {/* Botón de registro manual → F02 (próximo paso) */}
@@ -544,12 +543,6 @@ const styles = StyleSheet.create({
     color: COLORS.background,
     fontWeight: 'bold',
     fontSize: SIZES.body2,
-  },
-  actionButtonBadge: {
-    color: COLORS.background,
-    fontSize: 10,
-    opacity: 0.8,
-    fontStyle: 'italic',
   },
   // ── Tarjetas de Transacción ──
   transactionCard: {

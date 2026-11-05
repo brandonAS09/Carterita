@@ -2,13 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   Animated,
   Easing,
   Linking,
@@ -25,10 +23,6 @@ import {
   Settings,
   PenLine,
   RotateCcw,
-  DollarSign,
-  FileText,
-  LayoutGrid,
-  RefreshCw,
   Info,
 } from 'lucide-react-native';
 import { COLORS, SIZES } from '../src/theme/theme';
@@ -37,8 +31,7 @@ import { budgetService, Presupuesto } from '../src/services/budgetService';
 import { transactionService, Categoria } from '../src/services/transactionService';
 import { voiceRecognitionService, RecognitionConfig } from '../src/services/voiceRecognitionService';
 import { parseVoiceExpense, ParsedVoiceExpense } from '../src/utils/voiceExpenseParser';
-import { convertAmount, formatAmount, getCurrencySymbol, round2 } from '../src/utils/currencyUtils';
-import CategoryPicker from '../src/components/CategoryPicker';
+import ExpenseReviewForm, { ExpenseReviewValues } from '../src/components/ExpenseReviewForm';
 
 /**
  * F03 - Registro de Gasto por Voz.
@@ -57,13 +50,9 @@ type Phase =
 const MSG_NO_SPEECH = 'No te escuchamos. Toca el micrófono e intenta de nuevo.';
 const MSG_NO_AMOUNT =
   "No detectamos el monto del gasto. Por favor ingresa la cantidad manualmente o intenta dictar de nuevo (Ej. 'Compré un café de 45 pesos').";
-const MSG_SAVE_ERROR = 'Ocurrió un error al guardar el gasto. Inténtalo de nuevo.';
 const ONLINE_NOTICE_KEY = 'carterita.voiceOnlineNoticeShown';
 
 const EXAMPLES = ['Gasté 85 pesos en gasolina', 'Un café de 45', 'Uber al trabajo por 120'];
-
-const parseNumber = (text: string) => parseFloat(text.replace(/,/g, ''));
-const toInputText = (n: number) => round2(n).toString();
 
 export default function VoiceExpenseScreen({ navigation }: any) {
   const [phase, setPhase] = useState<Phase>('checking');
@@ -76,16 +65,6 @@ export default function VoiceExpenseScreen({ navigation }: any) {
   const [notice, setNotice] = useState<string | null>(null);
   const [showOnlineNotice, setShowOnlineNotice] = useState(false);
   const [parsed, setParsed] = useState<ParsedVoiceExpense | null>(null);
-
-  // Vista previa editable
-  const [montoText, setMontoText] = useState('');
-  const [montoEdited, setMontoEdited] = useState(false);
-  const [concepto, setConcepto] = useState('');
-  const [categoria, setCategoria] = useState<Categoria | null>(null);
-  const [tasaText, setTasaText] = useState('');
-  const [touched, setTouched] = useState({ monto: false, concepto: false, tasa: false });
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Refs para los listeners nativos (se registran una sola vez)
   const transcriptRef = useRef('');
@@ -133,32 +112,11 @@ export default function VoiceExpenseScreen({ navigation }: any) {
   // ─────────────────────────────────────────────
   const processTranscript = useCallback(
     (transcript: string) => {
-      const monedaPresupuesto = budget?.moneda ?? 'MXN';
-      const result = parseVoiceExpense(transcript, monedaPresupuesto);
+      const result = parseVoiceExpense(transcript, budget?.moneda ?? 'MXN');
       setParsed(result);
-
-      setConcepto(result.concepto);
-      setCategoria(categorias.find((c) => c.nombre === result.categoria) ?? null);
-      setMontoEdited(false);
-      setTasaText(budget?.tipo_cambio_usd ? budget.tipo_cambio_usd.toString() : '');
-      setTouched({ monto: false, concepto: false, tasa: false });
-      setSaveError(null);
-
-      if (result.monto === null) {
-        setMontoText('');
-      } else if (result.moneda === monedaPresupuesto) {
-        setMontoText(toInputText(result.monto));
-      } else if (budget?.tipo_cambio_usd) {
-        setMontoText(
-          toInputText(convertAmount(result.monto, result.moneda, monedaPresupuesto, budget.tipo_cambio_usd))
-        );
-      } else {
-        setMontoText(''); // se calcula cuando el usuario captura la tasa (D1)
-      }
-
       setPhase(result.monto === null ? 'no-amount' : 'review');
     },
-    [budget, categorias]
+    [budget]
   );
 
   const handleError = (code: string) => {
@@ -283,43 +241,9 @@ export default function VoiceExpenseScreen({ navigation }: any) {
     navigation.replace('AddExpense');
   };
 
-  // ─────────────────────────────────────────────
-  // Vista previa: moneda (D1) y validaciones
-  // ─────────────────────────────────────────────
-  const monedaPresupuesto = budget?.moneda ?? 'MXN';
-  const isForeign = !!parsed && parsed.monto !== null && parsed.moneda !== monedaPresupuesto;
-  const needsRate = isForeign && !budget?.tipo_cambio_usd;
-  const parsedTasa = parseNumber(tasaText);
-  const isTasaValid = !isNaN(parsedTasa) && isFinite(parsedTasa) && parsedTasa > 0;
-  const tasaEfectiva = needsRate ? (isTasaValid ? parsedTasa : null) : budget?.tipo_cambio_usd ?? null;
-
-  // Conversión en vivo mientras el usuario captura la tasa (si no editó el monto a mano)
-  useEffect(() => {
-    if (phase !== 'review' || !needsRate || montoEdited || !parsed?.monto) return;
-    setMontoText(
-      isTasaValid ? toInputText(convertAmount(parsed.monto, parsed.moneda, monedaPresupuesto, parsedTasa)) : ''
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasaText, phase, needsRate, montoEdited, parsed]);
-
-  const parsedMonto = parseNumber(montoText);
-  const isMontoValid = !isNaN(parsedMonto) && parsedMonto > 0;
-  const isConceptoValid = concepto.trim().length >= 2;
-  const isFormValid = isMontoValid && isConceptoValid && (!needsRate || isTasaValid) && userId !== null;
-
-  const handleSave = async () => {
-    if (!isFormValid || isSaving || !userId) return;
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      if (needsRate) await budgetService.setExchangeRate(userId, parsedTasa);
-      await transactionService.addTransaction(userId, round2(parsedMonto), concepto, categoria?.id ?? null, 'Voz');
-      navigation.goBack(); // el Dashboard se actualiza al recibir foco
-    } catch (error) {
-      console.error('Error al guardar gasto por voz:', error);
-      setSaveError(MSG_SAVE_ERROR);
-      setIsSaving(false);
-    }
+  const handleSave = async ({ monto, concepto, categoriaId }: ExpenseReviewValues) => {
+    await transactionService.addTransaction(userId!, monto, concepto, categoriaId, 'Voz');
+    navigation.goBack(); // el Dashboard se actualiza al recibir foco
   };
 
   // ─────────────────────────────────────────────
@@ -502,134 +426,37 @@ export default function VoiceExpenseScreen({ navigation }: any) {
   };
 
   const renderReview = () => (
-    <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-      {!!parsed?.transcripcion && (
-        <View style={styles.heardCard}>
-          <Text style={styles.heardLabel}>ESCUCHÉ</Text>
-          <Text style={styles.heardText}>"{parsed.transcripcion}"</Text>
-        </View>
-      )}
-
-      {saveError && (
-        <View style={styles.errorBanner}>
-          <AlertCircle color={COLORS.error} size={20} />
-          <Text style={styles.errorBannerText}>{saveError}</Text>
-        </View>
-      )}
-
-      {/* D1: monto dictado en otra moneda */}
-      {isForeign && parsed?.monto != null && (
-        <View style={[styles.currencyCard, needsRate && styles.currencyCardWarning]}>
-          <View style={styles.sectionHeader}>
-            <RefreshCw color={needsRate ? COLORS.error : COLORS.secondary} size={16} />
-            <Text style={styles.currencyText}>
-              {needsRate
-                ? `Dictaste un monto en ${parsed.moneda === 'USD' ? 'dólares' : 'pesos'}, pero aún no has definido un tipo de cambio. Defínelo para convertirlo a ${monedaPresupuesto}.`
-                : `${parsed.monto.toFixed(2)} ${parsed.moneda} ≈ ${formatAmount(
-                    convertAmount(parsed.monto, parsed.moneda, monedaPresupuesto, tasaEfectiva!),
-                    monedaPresupuesto
-                  )} ${monedaPresupuesto} (1 USD = ${tasaEfectiva} MXN)`}
-            </Text>
+    <ExpenseReviewForm
+      initial={{
+        monto: parsed?.monto ?? null,
+        moneda: parsed?.moneda ?? budget?.moneda ?? 'MXN',
+        concepto: parsed?.concepto ?? '',
+        categoria: parsed?.categoria ?? null,
+      }}
+      budget={budget}
+      categorias={categorias}
+      userId={userId}
+      header={
+        !!parsed?.transcripcion && (
+          <View style={styles.heardCard}>
+            <Text style={styles.heardLabel}>ESCUCHÉ</Text>
+            <Text style={styles.heardText}>"{parsed.transcripcion}"</Text>
           </View>
-          {needsRate && (
-            <>
-              <View style={[styles.rateInputContainer, touched.tasa && !isTasaValid && styles.inputError]}>
-                <Text style={styles.rateAffix}>1 USD =</Text>
-                <TextInput
-                  style={styles.rateInput}
-                  placeholder="0.00"
-                  placeholderTextColor={COLORS.textSecondary}
-                  keyboardType="decimal-pad"
-                  value={tasaText}
-                  onChangeText={setTasaText}
-                  onBlur={() => setTouched((t) => ({ ...t, tasa: true }))}
-                />
-                <Text style={styles.rateAffix}>MXN</Text>
-              </View>
-              {touched.tasa && !isTasaValid && (
-                <Text style={styles.fieldError}>Ingresa un tipo de cambio válido mayor a 0.</Text>
-              )}
-            </>
-          )}
-        </View>
+        )
+      }
+      footer={(isSaving) => (
+        <TouchableOpacity
+          style={[styles.secondaryButton, { marginTop: SIZES.spacing.sm }]}
+          onPress={startListening}
+          activeOpacity={0.8}
+          disabled={isSaving}
+        >
+          <RotateCcw color={COLORS.secondary} size={18} />
+          <Text style={styles.secondaryButtonText}>Dictar de nuevo</Text>
+        </TouchableOpacity>
       )}
-
-      {/* Monto */}
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <DollarSign color={COLORS.secondary} size={18} />
-          <Text style={styles.sectionTitle}>Monto</Text>
-        </View>
-        <View style={[styles.amountWrapper, touched.monto && !isMontoValid && styles.inputError]}>
-          <Text style={styles.currencyPrefix}>{getCurrencySymbol(monedaPresupuesto)}</Text>
-          <TextInput
-            style={styles.amountInput}
-            placeholder="0.00"
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="decimal-pad"
-            value={montoText}
-            onChangeText={(v) => {
-              setMontoText(v);
-              setMontoEdited(true);
-            }}
-            onBlur={() => setTouched((t) => ({ ...t, monto: true }))}
-            autoFocus={parsed?.monto == null} // Escenario 3 → "Continuar": monto vacío y enfocado
-          />
-          <Text style={styles.currencySuffix}>{monedaPresupuesto}</Text>
-        </View>
-        {touched.monto && !isMontoValid && <Text style={styles.fieldError}>Ingresa un monto mayor a 0.</Text>}
-      </View>
-
-      {/* Concepto */}
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <FileText color={COLORS.secondary} size={18} />
-          <Text style={styles.sectionTitle}>Concepto</Text>
-        </View>
-        <View style={[styles.inputWrapper, touched.concepto && !isConceptoValid && styles.inputError]}>
-          <TextInput
-            style={styles.textInput}
-            placeholder="Ej: Tacos, Uber, Netflix..."
-            placeholderTextColor={COLORS.textSecondary}
-            value={concepto}
-            onChangeText={setConcepto}
-            onBlur={() => setTouched((t) => ({ ...t, concepto: true }))}
-            maxLength={80}
-          />
-        </View>
-        {touched.concepto && !isConceptoValid && (
-          <Text style={styles.fieldError}>Escribe al menos 2 caracteres para el concepto.</Text>
-        )}
-      </View>
-
-      {/* Categoría */}
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <LayoutGrid color={COLORS.secondary} size={18} />
-          <Text style={styles.sectionTitle}>Categoría</Text>
-          <Text style={styles.optionalBadge}>{parsed?.categoria ? 'Sugerida' : 'Opcional'}</Text>
-        </View>
-        <CategoryPicker categorias={categorias} selectedId={categoria?.id ?? null} onChange={setCategoria} />
-      </View>
-
-      <TouchableOpacity
-        style={[styles.saveButton, !isFormValid && styles.saveButtonDisabled]}
-        onPress={handleSave}
-        disabled={!isFormValid || isSaving}
-        activeOpacity={0.8}
-      >
-        {isSaving ? (
-          <ActivityIndicator color={COLORS.background} size="small" />
-        ) : (
-          <Text style={[styles.saveButtonText, !isFormValid && styles.saveButtonTextDisabled]}>Guardar gasto</Text>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[styles.secondaryButton, { marginTop: SIZES.spacing.sm }]} onPress={startListening} activeOpacity={0.8} disabled={isSaving}>
-        <RotateCcw color={COLORS.secondary} size={18} />
-        <Text style={styles.secondaryButtonText}>Dictar de nuevo</Text>
-      </TouchableOpacity>
-    </ScrollView>
+      onSave={handleSave}
+    />
   );
 
   return (
@@ -803,11 +630,6 @@ const styles = StyleSheet.create({
   linkButton: { alignItems: 'center', paddingVertical: SIZES.spacing.xs },
   linkText: { color: COLORS.textSecondary, fontSize: SIZES.body2, textDecorationLine: 'underline' },
   // ── Vista previa ──
-  scrollContent: {
-    paddingHorizontal: SIZES.spacing.lg,
-    paddingTop: SIZES.spacing.md,
-    paddingBottom: SIZES.spacing.xl,
-  },
   heardCard: {
     backgroundColor: 'rgba(19, 92, 58, 0.25)',
     borderWidth: 1,
@@ -818,98 +640,4 @@ const styles = StyleSheet.create({
   },
   heardLabel: { color: COLORS.textSecondary, fontSize: 11, letterSpacing: 1, fontWeight: '700', marginBottom: 4 },
   heardText: { color: COLORS.text, fontSize: SIZES.body1, fontStyle: 'italic', textAlign: 'center' },
-  currencyCard: {
-    backgroundColor: COLORS.tertiary,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderRadius: SIZES.radius.card,
-    padding: SIZES.spacing.md,
-    marginBottom: SIZES.spacing.md,
-  },
-  currencyCardWarning: { borderColor: COLORS.error },
-  currencyText: { color: COLORS.text, fontSize: SIZES.body2, flex: 1, lineHeight: 20 },
-  rateInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: SIZES.radius.button,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    paddingHorizontal: SIZES.spacing.md,
-    height: 48,
-    gap: SIZES.spacing.xs,
-  },
-  rateAffix: { color: COLORS.textSecondary, fontSize: SIZES.body1, fontWeight: '600' },
-  rateInput: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: SIZES.body1,
-    fontWeight: 'bold',
-    fontVariant: ['tabular-nums'],
-    height: '100%',
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(207, 102, 121, 0.15)',
-    borderWidth: 1,
-    borderColor: COLORS.error,
-    borderRadius: SIZES.radius.button,
-    padding: SIZES.spacing.sm,
-    marginBottom: SIZES.spacing.md,
-    gap: SIZES.spacing.xs,
-  },
-  errorBannerText: { color: COLORS.error, fontSize: SIZES.body2, flex: 1 },
-  sectionCard: {
-    backgroundColor: COLORS.tertiary,
-    borderRadius: SIZES.radius.card,
-    padding: SIZES.spacing.md,
-    marginBottom: SIZES.spacing.md,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.spacing.xs,
-    marginBottom: SIZES.spacing.sm,
-  },
-  sectionTitle: { color: COLORS.text, fontSize: SIZES.body1, fontWeight: '600', flex: 1 },
-  optionalBadge: { color: COLORS.textSecondary, fontSize: 11, fontStyle: 'italic' },
-  amountWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: SIZES.radius.button,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    paddingHorizontal: SIZES.spacing.md,
-    height: 60,
-  },
-  currencyPrefix: { color: COLORS.secondary, fontSize: 28, fontWeight: 'bold', marginRight: 6 },
-  amountInput: { flex: 1, color: COLORS.text, fontSize: 28, fontWeight: 'bold', fontVariant: ['tabular-nums'] },
-  currencySuffix: { color: COLORS.textSecondary, fontSize: SIZES.body2, fontWeight: '600', marginLeft: 6 },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: SIZES.radius.button,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    paddingHorizontal: SIZES.spacing.md,
-    height: 50,
-  },
-  textInput: { flex: 1, color: COLORS.text, fontSize: SIZES.body1 },
-  inputError: { borderColor: COLORS.error },
-  fieldError: { color: COLORS.error, fontSize: 12, marginTop: 6, marginLeft: 4 },
-  saveButton: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: SIZES.radius.button,
-    height: 52,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  saveButtonDisabled: { backgroundColor: COLORS.disabledBg },
-  saveButtonText: { color: COLORS.background, fontSize: SIZES.body1, fontWeight: 'bold' },
-  saveButtonTextDisabled: { color: COLORS.disabledText },
 });

@@ -10,7 +10,7 @@ interface CategoryPickerProps {
   onChange: (categoria: Categoria | null) => void;
 }
 
-/** Selector de categoría en chips (F03; reutilizable por la vista previa de OCR en Sprint 3). */
+/** Selector de categoría en chips (vista previa de Voz y Escáner). */
 export default function CategoryPicker({ categorias, selectedId, onChange }: CategoryPickerProps) {
   return (
     <View style={styles.grid}>
