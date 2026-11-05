@@ -16,6 +16,7 @@ import VoiceExpenseScreen from './screens/VoiceExpenseScreen';
 import ScannerExpenseScreen from './screens/ScannerExpenseScreen';
 import GoalsScreen from './screens/GoalsScreen';
 import CreateGoalScreen from './screens/CreateGoalScreen';
+import SettingsScreen from './screens/SettingsScreen';
 import { initDatabase } from './src/database/initDb';
 import { authService } from './src/services/authService';
 import { budgetService } from './src/services/budgetService';
@@ -121,6 +122,7 @@ function AppContent() {
           <Stack.Screen name="VoiceExpense" component={VoiceExpenseScreen} />
           <Stack.Screen name="ScannerExpense" component={ScannerExpenseScreen} />
           <Stack.Screen name="CreateGoal" component={CreateGoalScreen} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </>

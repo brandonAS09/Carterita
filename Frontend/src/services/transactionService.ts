@@ -39,6 +39,20 @@ export const transactionService = {
     return rows;
   },
 
+  // Últimos gastos del usuario, del más reciente al más antiguo (Inicio)
+  getRecentTransactions: async (userId: number, limit: number): Promise<Transaccion[]> => {
+    const db = await getDb();
+    return db.getAllAsync<Transaccion>(
+      `SELECT t.*, c.nombre AS categoria_nombre, c.icono AS categoria_icono
+       FROM Transaccion t
+       LEFT JOIN Categoria c ON t.categoria_id = c.id
+       WHERE t.usuario_id = ?
+       ORDER BY t.fecha DESC
+       LIMIT ?`,
+      [userId, limit]
+    );
+  },
+
   // Sumar el total gastado hoy
   getTodayTotal: async (userId: number): Promise<number> => {
     const db = await getDb();

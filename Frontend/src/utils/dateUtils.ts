@@ -48,6 +48,18 @@ export const getLocalRangeISOForKeys = (fromKey: string, toKey: string): { start
   end: parseDateKey(addDaysToKey(toKey, 1)).toISOString(),
 });
 
+/** Fecha legible en español, como "3 de noviembre". */
+export const formatLongDate = (dateKey: string): string =>
+  parseDateKey(dateKey).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' });
+
+/** Encabezado de un grupo de movimientos: "Hoy", "Ayer" o "3 de noviembre". */
+export const formatDayLabel = (dateKey: string, hoy: string = toLocalDateKey()): string => {
+  const dias = diffInDays(dateKey, hoy);
+  if (dias === 0) return 'Hoy';
+  if (dias === 1) return 'Ayer';
+  return formatLongDate(dateKey);
+};
+
 /** Mediodía local de una fecha 'YYYY-MM-DD' en ISO UTC: queda en ese día sin importar la zona horaria. */
 export const getLocalNoonISO = (dateKey: string): string => {
   const d = parseDateKey(dateKey);
