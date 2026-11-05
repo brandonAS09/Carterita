@@ -1,23 +1,29 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock, User as UserIcon, AlertCircle, Eye, EyeOff, Wallet } from 'lucide-react-native';
-import { COLORS, SIZES } from '../src/theme/theme';
+import React, { useEffect, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Mail, Lock, User as UserIcon, Eye, EyeOff } from 'lucide-react-native';
+import { useTheme, useThemedStyles } from '../src/theme/ThemeProvider';
+import { MIN_TOUCH, RADIUS, SPACING, ThemeColors, TYPOGRAPHY } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
 import { budgetService } from '../src/services/budgetService';
+import HeroHeader from '../src/components/ui/HeroHeader';
+import Button from '../src/components/ui/Button';
+import TextField from '../src/components/ui/TextField';
+import { Banner } from '../src/components/ui/Form';
+import { Logo } from '../src/components/ui/HomeBlocks';
 
 export default function LoginScreen({ navigation }: any) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
+  // Escenario 10: con el teclado abierto la cabecera se reduce para que el formulario siga visible
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const subscriptions = [
+      Keyboard.addListener('keyboardDidShow', () => setIsKeyboardOpen(true)),
+      Keyboard.addListener('keyboardDidHide', () => setIsKeyboardOpen(false)),
+    ];
+    return () => subscriptions.forEach((subscription) => subscription.remove());
+  }, []);
   const [isLoginMode, setIsLoginMode] = useState(true);
 
   // Campos de formulario
@@ -85,334 +91,147 @@ export default function LoginScreen({ navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardContainer}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Encabezado / Logo */}
-          <View style={styles.header}>
-            <View style={styles.logoIconContainer}>
-              <Wallet color={COLORS.secondary} size={36} />
-            </View>
-            <Text style={styles.appTitle}>Carterita</Text>
-            <Text style={styles.appSubtitle}>
-              {isLoginMode ? 'Inicia sesión para gestionar tus finanzas' : 'Crea tu cuenta para comenzar a ahorrar'}
-            </Text>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <HeroHeader variant="full" collapsed={isKeyboardOpen}>
+          <View style={styles.heroContent}>
+            <Logo size={isKeyboardOpen ? 'small' : 'large'} />
+            {!isKeyboardOpen && (
+              <Text style={styles.heroSubtitle}>
+                {isLoginMode ? 'Inicia sesión para gestionar tus finanzas' : 'Crea tu cuenta para comenzar a ahorrar'}
+              </Text>
+            )}
           </View>
+        </HeroHeader>
 
+        <View style={styles.body}>
           {/* Selector de Modo (Login / Registro) */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tabButton, isLoginMode && styles.activeTabButton]}
-              onPress={() => handleToggleMode(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.tabText, isLoginMode && styles.activeTabText]}>
-                Iniciar Sesión
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.tabButton, !isLoginMode && styles.activeTabButton]}
-              onPress={() => handleToggleMode(false)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.tabText, !isLoginMode && styles.activeTabText]}>
-                Registrarse
-              </Text>
-            </TouchableOpacity>
+          <View style={styles.tabs} accessibilityRole="radiogroup">
+            {[
+              { mode: true, label: 'Iniciar Sesión' },
+              { mode: false, label: 'Registrarse' },
+            ].map(({ mode, label }) => {
+              const isSelected = isLoginMode === mode;
+              return (
+                <Pressable
+                  key={label}
+                  style={[styles.tab, isSelected && { backgroundColor: colors.primary }]}
+                  onPress={() => handleToggleMode(mode)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: isSelected }}
+                >
+                  <Text style={[styles.tabText, isSelected && { color: colors.onPrimary }]}>{label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
 
           {/* Banner de Error (Caso Negativo) */}
-          {serverError && (
-            <View style={styles.errorBanner}>
-              <AlertCircle color={COLORS.error} size={20} />
-              <Text style={styles.errorBannerText}>{serverError}</Text>
-            </View>
+          {serverError && <Banner tone="error" message={serverError} />}
+
+          {/* Campo Nombre (Solo en Registro) */}
+          {!isLoginMode && (
+            <TextField
+              label="Nombre completo"
+              leftIcon={UserIcon}
+              placeholder="Tu nombre"
+              value={nombre}
+              onChangeText={(val) => {
+                setNombre(val);
+                if (serverError) setServerError(null);
+              }}
+              onBlur={() => handleBlur('nombre')}
+              autoCapitalize="words"
+              error={touched.nombre && !isNombreValid ? 'El nombre debe tener al menos 2 caracteres.' : null}
+              containerStyle={styles.field}
+            />
           )}
 
-          {/* Formulario */}
-          <View style={styles.formContainer}>
-            {/* Campo Nombre (Solo en Registro) */}
-            {!isLoginMode && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nombre completo</Text>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    touched.nombre && !isNombreValid && styles.inputWrapperError,
-                  ]}
-                >
-                  <UserIcon color={COLORS.textSecondary} size={20} />
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Tu nombre"
-                    placeholderTextColor={COLORS.textSecondary}
-                    value={nombre}
-                    onChangeText={(val) => {
-                      setNombre(val);
-                      if (serverError) setServerError(null);
-                    }}
-                    onBlur={() => handleBlur('nombre')}
-                    autoCapitalize="words"
-                  />
-                </View>
-                {touched.nombre && !isNombreValid && (
-                  <Text style={styles.fieldErrorText}>El nombre debe tener al menos 2 caracteres.</Text>
+          <TextField
+            label="Correo electrónico"
+            leftIcon={Mail}
+            placeholder="ejemplo@correo.com"
+            value={email}
+            onChangeText={(val) => {
+              setEmail(val);
+              if (serverError) setServerError(null);
+            }}
+            onBlur={() => handleBlur('email')}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            error={touched.email && !isEmailValid ? 'Ingresa un correo electrónico válido.' : null}
+            containerStyle={styles.field}
+          />
+
+          <TextField
+            label="Contraseña"
+            leftIcon={Lock}
+            placeholder="Mínimo 6 caracteres"
+            value={password}
+            onChangeText={(val) => {
+              setPassword(val);
+              if (serverError) setServerError(null);
+            }}
+            onBlur={() => handleBlur('password')}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            error={touched.password && !isPasswordValid ? 'La contraseña debe tener al menos 6 caracteres.' : null}
+            containerStyle={styles.field}
+            rightAccessory={
+              <Pressable
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeButton}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? (
+                  <EyeOff color={colors.textSecondary} size={20} />
+                ) : (
+                  <Eye color={colors.textSecondary} size={20} />
                 )}
-              </View>
-            )}
+              </Pressable>
+            }
+          />
 
-            {/* Campo Email */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Correo electrónico</Text>
-              <View
-                style={[
-                  styles.inputWrapper,
-                  touched.email && !isEmailValid && styles.inputWrapperError,
-                ]}
-              >
-                <Mail color={COLORS.textSecondary} size={20} />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="ejemplo@correo.com"
-                  placeholderTextColor={COLORS.textSecondary}
-                  value={email}
-                  onChangeText={(val) => {
-                    setEmail(val);
-                    if (serverError) setServerError(null);
-                  }}
-                  onBlur={() => handleBlur('email')}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-              {touched.email && !isEmailValid && (
-                <Text style={styles.fieldErrorText}>Ingresa un correo electrónico válido.</Text>
-              )}
-            </View>
-
-            {/* Campo Contraseña */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Contraseña</Text>
-              <View
-                style={[
-                  styles.inputWrapper,
-                  touched.password && !isPasswordValid && styles.inputWrapperError,
-                ]}
-              >
-                <Lock color={COLORS.textSecondary} size={20} />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Mínimo 6 caracteres"
-                  placeholderTextColor={COLORS.textSecondary}
-                  value={password}
-                  onChangeText={(val) => {
-                    setPassword(val);
-                    if (serverError) setServerError(null);
-                  }}
-                  onBlur={() => handleBlur('password')}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  {showPassword ? (
-                    <EyeOff color={COLORS.textSecondary} size={20} />
-                  ) : (
-                    <Eye color={COLORS.textSecondary} size={20} />
-                  )}
-                </TouchableOpacity>
-              </View>
-              {touched.password && !isPasswordValid && (
-                <Text style={styles.fieldErrorText}>
-                  La contraseña debe tener al menos 6 caracteres.
-                </Text>
-              )}
-            </View>
-
-            {/* Botón Principal (Criterio de Aceptación: Deshabilitado si incompleto / Spinner en carga) */}
-            <TouchableOpacity
-              style={[
-                styles.submitButton,
-                !isFormValid && styles.submitButtonDisabled,
-              ]}
-              onPress={handleSubmit}
-              disabled={!isFormValid || isLoading}
-              activeOpacity={0.8}
-            >
-              {isLoading ? (
-                <ActivityIndicator color={COLORS.background} size="small" />
-              ) : (
-                <Text
-                  style={[
-                    styles.submitButtonText,
-                    !isFormValid && styles.submitButtonTextDisabled,
-                  ]}
-                >
-                  {isLoginMode ? 'Iniciar Sesión' : 'Crear Cuenta'}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          {/* Criterio de Aceptación: deshabilitado si incompleto, indicador de carga al enviar */}
+          <Button
+            label={isLoginMode ? 'Iniciar Sesión' : 'Crear Cuenta'}
+            onPress={handleSubmit}
+            disabled={!isFormValid}
+            loading={isLoading}
+            style={styles.submit}
+          />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  keyboardContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: SIZES.spacing.lg,
-    paddingVertical: SIZES.spacing.xl,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: SIZES.spacing.lg,
-  },
-  logoIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.tertiary,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: SIZES.spacing.sm,
-  },
-  appTitle: {
-    color: COLORS.text,
-    fontSize: SIZES.h1,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  appSubtitle: {
-    color: COLORS.textSecondary,
-    fontSize: SIZES.body2,
-    textAlign: 'center',
-    marginTop: SIZES.spacing.xs,
-    paddingHorizontal: SIZES.spacing.md,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.tertiary,
-    borderRadius: SIZES.radius.button,
-    padding: 4,
-    marginBottom: SIZES.spacing.lg,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: SIZES.radius.button - 2,
-  },
-  activeTabButton: {
-    backgroundColor: COLORS.primary,
-  },
-  tabText: {
-    color: COLORS.textSecondary,
-    fontSize: SIZES.body2,
-    fontWeight: '600',
-  },
-  activeTabText: {
-    color: COLORS.text,
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(207, 102, 121, 0.15)',
-    borderWidth: 1,
-    borderColor: COLORS.error,
-    borderRadius: SIZES.radius.button,
-    padding: SIZES.spacing.sm,
-    marginBottom: SIZES.spacing.md,
-    gap: SIZES.spacing.xs,
-  },
-  errorBannerText: {
-    color: COLORS.error,
-    fontSize: SIZES.body2,
-    flex: 1,
-  },
-  formContainer: {
-    backgroundColor: COLORS.tertiary,
-    borderRadius: SIZES.radius.card,
-    padding: SIZES.spacing.lg,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-  },
-  inputGroup: {
-    marginBottom: SIZES.spacing.md,
-  },
-  inputLabel: {
-    color: COLORS.text,
-    fontSize: SIZES.body2,
-    fontWeight: '500',
-    marginBottom: SIZES.spacing.xs,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: SIZES.radius.button,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    paddingHorizontal: SIZES.spacing.md,
-    height: 48,
-    gap: SIZES.spacing.xs,
-  },
-  inputWrapperError: {
-    borderColor: COLORS.error,
-  },
-  textInput: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: SIZES.body1,
-    height: '100%',
-  },
-  fieldErrorText: {
-    color: COLORS.error,
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 4,
-  },
-  submitButton: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: SIZES.radius.button,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: SIZES.spacing.sm,
-  },
-  submitButtonDisabled: {
-    backgroundColor: COLORS.disabledBg,
-  },
-  submitButtonText: {
-    color: COLORS.background,
-    fontSize: SIZES.body1,
-    fontWeight: 'bold',
-  },
-  submitButtonTextDisabled: {
-    color: COLORS.disabledText,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
+    scrollContent: { flexGrow: 1, paddingBottom: SPACING.xl },
+    heroContent: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.xs },
+    heroSubtitle: { ...TYPOGRAPHY.body2, color: colors.onHeroSecondary, textAlign: 'center' },
+    body: { paddingHorizontal: SPACING.md },
+    tabs: {
+      flexDirection: 'row',
+      backgroundColor: colors.surfaceVariant,
+      borderRadius: RADIUS.pill,
+      padding: 4,
+      marginBottom: SPACING.md,
+    },
+    tab: {
+      flex: 1,
+      minHeight: MIN_TOUCH - 8,
+      borderRadius: RADIUS.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
+    },
+    tabText: { ...TYPOGRAPHY.body2Strong, color: colors.text, textAlign: 'center' },
+    field: { marginBottom: SPACING.sm },
+    eyeButton: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center', marginRight: -SPACING.sm },
+    submit: { marginTop: SPACING.xs },
+  });
