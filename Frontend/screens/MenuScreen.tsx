@@ -180,6 +180,7 @@ export default function MenuScreen({ navigation }: any) {
             monto={tx.monto}
             moneda={moneda}
             icono={tx.categoria_icono}
+            onPress={() => navigation.navigate('EditExpense', { id: tx.id })}
           />
         ))}
       </View>

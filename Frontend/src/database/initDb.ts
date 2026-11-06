@@ -256,7 +256,25 @@ const migrationV5: Migration = async (db) => {
   await db.execAsync('DELETE FROM AporteMeta WHERE meta_id NOT IN (SELECT id FROM MetaAhorro)');
 };
 
-const MIGRATIONS: Migration[] = [migrationV1, migrationV2, migrationV3, migrationV4, migrationV5];
+// ─────────────────────────────────────────────
+// v6 — Categorías que aprenden (F09, Sprint 6)
+// ─────────────────────────────────────────────
+const migrationV6: Migration = async (db) => {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS PreferenciaCategoria (
+      usuario_id INTEGER NOT NULL,
+      clave TEXT NOT NULL,
+      categoria_id INTEGER NOT NULL,
+      usos INTEGER NOT NULL DEFAULT 1,
+      actualizado_en TEXT NOT NULL,
+      PRIMARY KEY (usuario_id, clave),
+      FOREIGN KEY (usuario_id) REFERENCES Usuario(id) ON DELETE CASCADE,
+      FOREIGN KEY (categoria_id) REFERENCES Categoria(id) ON DELETE CASCADE
+    );
+  `);
+};
+
+const MIGRATIONS: Migration[] = [migrationV1, migrationV2, migrationV3, migrationV4, migrationV5, migrationV6];
 
 /** Duración en días de cada ciclo (fuente única, usada también por budgetService). */
 export const cycleLengthInDays = (tipoCiclo: string): number => {

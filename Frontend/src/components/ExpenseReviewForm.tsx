@@ -46,6 +46,9 @@ interface ExpenseReviewFormProps {
   footer?: (isSaving: boolean) => React.ReactNode;
   /** Registra el gasto y sale de la pantalla. Si falla, el formulario muestra el error. */
   onSave: (values: ExpenseReviewValues) => Promise<void>;
+  saveLabel?: string;
+  /** Al editar un gasto, su categoría ya no es una sugerencia. */
+  hideCategoryBadge?: boolean;
 }
 
 /** Vista previa editable de un gasto, compartida entre Voz (F03) y Escáner (F04). */
@@ -59,6 +62,8 @@ export default function ExpenseReviewForm({
   extra,
   footer,
   onSave,
+  saveLabel = 'Guardar gasto',
+  hideCategoryBadge,
 }: ExpenseReviewFormProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -209,13 +214,13 @@ export default function ExpenseReviewForm({
       </FormSection>
 
       {/* Categoría */}
-      <FormSection title="Categoría" icon={LayoutGrid} badge={initial.categoria ? 'Sugerida' : 'Opcional'}>
+      <FormSection title="Categoría" icon={LayoutGrid} badge={hideCategoryBadge ? 'Opcional' : initial.categoria ? 'Sugerida' : 'Opcional'}>
         <CategoryPicker categorias={categorias} selectedId={categoria?.id ?? null} onChange={setCategoria} />
       </FormSection>
 
       {extra}
 
-      <Button label="Guardar gasto" onPress={handleSave} disabled={!isFormValid} loading={isSaving} />
+      <Button label={saveLabel} onPress={handleSave} disabled={!isFormValid} loading={isSaving} />
 
       {footer?.(isSaving)}
     </ScrollView>

@@ -61,7 +61,7 @@ export function SummaryTile({ label, value, moneda, backgroundColor, onPress, ac
       style={[styles.tile, { backgroundColor }]}
     >
       <Text style={[TYPOGRAPHY.caption, { color: colors.onHero }]}>{label}</Text>
-      <Amount value={value} moneda={moneda} label={label} style={[TYPOGRAPHY.body1Strong, { color: colors.onHero }]} />
+      <Amount value={value} moneda={moneda} style={[TYPOGRAPHY.body1Strong, { color: colors.onHero }]} />
     </Pressable>
   );
 }
@@ -98,14 +98,22 @@ interface TransactionRowProps {
   monto: number;
   moneda: string;
   icono?: string | null;
+  /** F08.1: tocar la fila abre la edición del gasto. */
+  onPress?: () => void;
 }
 
 /** Fila de gasto: el monto usa color neutro y signo menos (sección 2.2 de la guía). */
-export function TransactionRow({ concepto, subtitle, monto, moneda, icono }: TransactionRowProps) {
+export function TransactionRow({ concepto, subtitle, monto, moneda, icono, onPress }: TransactionRowProps) {
   const { colors } = useTheme();
   const themed = useThemedStyles(createStyles);
   return (
-    <View style={themed.row}>
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityHint={onPress ? 'Abre la edición del gasto' : undefined}
+      style={({ pressed }) => [themed.row, pressed && { backgroundColor: colors.surfaceVariant }]}
+    >
       <View style={themed.rowIcon}>
         <CategoryIcon icono={icono} color={colors.primary} size={20} />
       </View>
@@ -118,7 +126,7 @@ export function TransactionRow({ concepto, subtitle, monto, moneda, icono }: Tra
         </Text>
       </View>
       <Amount value={monto} moneda={moneda} sign="minus" style={[TYPOGRAPHY.body1Strong, { color: colors.text }]} />
-    </View>
+    </Pressable>
   );
 }
 
@@ -155,7 +163,7 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.xs },
+    row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.xs, borderRadius: RADIUS.sm },
     rowIcon: {
       width: 40,
       height: 40,

@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { PackageOpen, Search } from 'lucide-react-native';
 import { authService } from '../src/services/authService';
 import { budgetService } from '../src/services/budgetService';
@@ -18,7 +19,7 @@ const formatTime = (fecha: string) =>
   new Date(fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
 /** S5-11: historial de solo lectura (D14). Editar y borrar quedan para un sprint de funciones. */
-export default function HistoryScreen({ navigation }: any) {
+export default function HistoryScreen({ navigation, route }: any) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
 
@@ -26,12 +27,15 @@ export default function HistoryScreen({ navigation }: any) {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [moneda, setMoneda] = useState('MXN');
   const [query, setQuery] = useState('');
-  const [categoriaId, setCategoriaId] = useState<number | null>(null);
+  const [categoriaId, setCategoriaId] = useState<number | null>(route.params?.categoriaId ?? null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
 
+  const hasLoadedOnce = useRef(false);
+
   const load = useCallback(async () => {
-    setIsLoading(true);
+    // Al volver de editar un gasto se actualiza sin parpadeo, conservando búsqueda y filtros
+    if (!hasLoadedOnce.current) setIsLoading(true);
     setLoadFailed(false);
     try {
       const session = await authService.getActiveSession();
@@ -47,6 +51,7 @@ export default function HistoryScreen({ navigation }: any) {
       setItems(all);
       setCategorias(cats);
       if (budget) setMoneda(budget.moneda);
+      hasLoadedOnce.current = true;
     } catch (error) {
       console.error('Error cargando el historial:', error);
       setLoadFailed(true);
@@ -55,9 +60,16 @@ export default function HistoryScreen({ navigation }: any) {
     }
   }, [navigation]);
 
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  // Escenario 11: al llegar desde Reportes con otra categoría
   useEffect(() => {
-    load();
-  }, [load]);
+    if (route.params?.categoriaId !== undefined) setCategoriaId(route.params.categoriaId);
+  }, [route.params?.categoriaId]);
 
   const groups = useMemo(() => groupByDay(filterTransactions(items, query, categoriaId)), [items, query, categoriaId]);
 
@@ -104,6 +116,7 @@ export default function HistoryScreen({ navigation }: any) {
               monto={tx.monto}
               moneda={moneda}
               icono={tx.categoria_icono}
+              onPress={() => navigation.navigate('EditExpense', { id: tx.id })}
             />
           ))}
         </View>
