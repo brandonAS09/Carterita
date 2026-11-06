@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ChartPie, ChevronRight, Lightbulb, Minus, TrendingDown, TrendingUp } from 'lucide-react-native';
 import { authService } from '../src/services/authService';
@@ -21,11 +21,14 @@ import { Chip } from '../src/components/ui/Form';
 import { EmptyState, ErrorState, Skeleton } from '../src/components/ui/States';
 
 const MIN_DAYS_FOR_BARS = 2;
+const LARGE_TEXT_SCALE = 1.3;
 
 /** F10: en qué se va el dinero, sin dependencias nuevas y sin salir del teléfono. */
 export default function ReportsScreen({ navigation }: any) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  // Con texto grande, el nombre va en su propio renglón para no cortarse
+  const isLargeText = useWindowDimensions().fontScale >= LARGE_TEXT_SCALE;
 
   const [budget, setBudget] = useState<Presupuesto | null>(null);
   const [periods, setPeriods] = useState<ReportPeriod[]>([]);
@@ -155,11 +158,13 @@ export default function ReportsScreen({ navigation }: any) {
                     style={[styles.swatch, { backgroundColor: slot === undefined ? colors.chartNeutral : colors.chart[slot] }]}
                   />
                   <CategoryIcon icono={category.icono} color={colors.textSecondary} size={18} />
-                  <Text style={styles.categoryName} numberOfLines={1}>
-                    {category.nombre}
-                  </Text>
-                  <Text style={styles.secondaryText}>{category.pct} %</Text>
-                  <Amount value={category.total} moneda={moneda} style={styles.categoryAmount} />
+                  <View style={[styles.categoryBody, isLargeText && styles.categoryBodyStacked]}>
+                    <Text style={styles.categoryName}>{category.nombre}</Text>
+                    <View style={styles.categoryValues}>
+                      <Text style={styles.secondaryText}>{category.pct} %</Text>
+                      <Amount value={category.total} moneda={moneda} style={styles.categoryAmount} />
+                    </View>
+                  </View>
                   <View style={styles.chevronSlot}>
                     {category.id !== null && <ChevronRight color={colors.textSecondary} size={18} />}
                   </View>
@@ -242,7 +247,10 @@ const createStyles = (colors: ThemeColors) =>
       paddingVertical: 4,
     },
     swatch: { width: 12, height: 12, borderRadius: 3 },
-    categoryName: { ...TYPOGRAPHY.body2, color: colors.text, flex: 1 },
+    categoryBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+    categoryBodyStacked: { flexDirection: 'column', alignItems: 'flex-start', gap: 0 },
+    categoryName: { ...TYPOGRAPHY.body2, color: colors.text, flexShrink: 1, flexGrow: 1 },
+    categoryValues: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
     categoryAmount: { ...TYPOGRAPHY.body2Strong, color: colors.text },
     chevronSlot: { width: 18 },
   });

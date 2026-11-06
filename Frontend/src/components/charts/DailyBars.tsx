@@ -4,7 +4,7 @@ import Svg, { Line, Path } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeProvider';
 import { TYPOGRAPHY } from '../../theme/theme';
 import { formatAmount } from '../../utils/currencyUtils';
-import { formatLongDate } from '../../utils/dateUtils';
+import { formatLongDate, formatShortDate } from '../../utils/dateUtils';
 import type { DayTotal } from '../../utils/reportCalculator';
 
 const HEIGHT = 140;
@@ -95,8 +95,8 @@ export default function DailyBars({ days, moneda, referenceLimit }: DailyBarsPro
 
       {days.length > 0 && (
         <View style={styles.axis} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          <Text style={[TYPOGRAPHY.caption, { color: colors.textSecondary }]}>{formatLongDate(days[0].day)}</Text>
-          <Text style={[TYPOGRAPHY.caption, { color: colors.textSecondary }]}>{formatLongDate(days[days.length - 1].day)}</Text>
+          <Text style={[TYPOGRAPHY.caption, { color: colors.textSecondary }]}>{formatShortDate(days[0].day)}</Text>
+          <Text style={[TYPOGRAPHY.caption, { color: colors.textSecondary }]}>{formatShortDate(days[days.length - 1].day)}</Text>
         </View>
       )}
       {!!referenceLimit && referenceLimit > 0 && (
