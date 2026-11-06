@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { House, PiggyBank } from 'lucide-react-native';
+import { ChartPie, House, PiggyBank } from 'lucide-react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
@@ -18,6 +18,8 @@ import GoalsScreen from './screens/GoalsScreen';
 import CreateGoalScreen from './screens/CreateGoalScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import HistoryScreen from './screens/HistoryScreen';
+import EditExpenseScreen from './screens/EditExpenseScreen';
+import ReportsScreen from './screens/ReportsScreen';
 import { initDatabase } from './src/database/initDb';
 import { authService } from './src/services/authService';
 import { budgetService } from './src/services/budgetService';
@@ -29,6 +31,8 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+const TAB_ICONS: Record<string, typeof House> = { Inicio: House, Reportes: ChartPie, Metas: PiggyBank };
 
 /** S3-01: navegación inferior entre el Dashboard y las Metas. */
 function MainTabs() {
@@ -42,11 +46,14 @@ function MainTabs() {
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.divider },
         tabBarLabelStyle: TYPOGRAPHY.caption,
         tabBarItemStyle: { minHeight: MIN_TOUCH },
-        tabBarIcon: ({ color, size }) =>
-          route.name === 'Inicio' ? <House color={color} size={size} /> : <PiggyBank color={color} size={size} />,
+        tabBarIcon: ({ color, size }) => {
+          const Icon = TAB_ICONS[route.name];
+          return <Icon color={color} size={size} />;
+        },
       })}
     >
       <Tab.Screen name="Inicio" component={MenuScreen} />
+      <Tab.Screen name="Reportes" component={ReportsScreen} />
       <Tab.Screen name="Metas" component={GoalsScreen} />
     </Tab.Navigator>
   );
@@ -125,6 +132,7 @@ function AppContent() {
           <Stack.Screen name="CreateGoal" component={CreateGoalScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="History" component={HistoryScreen} />
+          <Stack.Screen name="EditExpense" component={EditExpenseScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </>
