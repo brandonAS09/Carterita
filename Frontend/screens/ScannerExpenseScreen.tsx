@@ -20,6 +20,7 @@ import { RADIUS, SPACING, ThemeColors, TYPOGRAPHY } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
 import { budgetService, Presupuesto } from '../src/services/budgetService';
 import { transactionService, Categoria } from '../src/services/transactionService';
+import { categoryPreferenceService } from '../src/services/categoryPreferenceService';
 import { isTicketDateUsable, parseReceipt, ParsedReceipt } from '../src/utils/receiptParser';
 import { parseDateKey, toLocalDateKey } from '../src/utils/dateUtils';
 import ExpenseReviewForm, { ExpenseReviewValues } from '../src/components/ExpenseReviewForm';
@@ -103,7 +104,13 @@ export default function ScannerExpenseScreen({ navigation }: any) {
         setPhase('no-text'); // Escenario 7
         return;
       }
-      setReceipt(parseReceipt(lines, toLocalDateKey()));
+      const parsedReceipt = parseReceipt(lines, toLocalDateKey());
+      // F09: lo aprendido para este comercio tiene prioridad sobre el diccionario
+      const categoria =
+        userId && parsedReceipt.comercio
+          ? await categoryPreferenceService.suggest(userId, parsedReceipt.comercio, parsedReceipt.categoria)
+          : parsedReceipt.categoria;
+      setReceipt({ ...parsedReceipt, categoria });
       setUseTicketDate(true);
       setPhase('review');
     } catch (error) {

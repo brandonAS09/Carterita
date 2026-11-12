@@ -18,6 +18,7 @@ import { RADIUS, SPACING, ThemeColors, TYPOGRAPHY } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
 import { budgetService, Presupuesto } from '../src/services/budgetService';
 import { transactionService, Categoria } from '../src/services/transactionService';
+import { categoryPreferenceService } from '../src/services/categoryPreferenceService';
 import { voiceRecognitionService, RecognitionConfig } from '../src/services/voiceRecognitionService';
 import { parseVoiceExpense, ParsedVoiceExpense } from '../src/utils/voiceExpenseParser';
 import { useReducedMotion } from '../src/utils/useReducedMotion';
@@ -107,12 +108,16 @@ export default function VoiceExpenseScreen({ navigation }: any) {
   // Procesamiento del dictado
   // ─────────────────────────────────────────────
   const processTranscript = useCallback(
-    (transcript: string) => {
+    async (transcript: string) => {
       const result = parseVoiceExpense(transcript, budget?.moneda ?? 'MXN');
-      setParsed(result);
+      // F09: lo aprendido tiene prioridad sobre el diccionario
+      const categoria = userId
+        ? await categoryPreferenceService.suggest(userId, result.concepto, result.categoria)
+        : result.categoria;
+      setParsed({ ...result, categoria });
       setPhase(result.monto === null ? 'no-amount' : 'review');
     },
-    [budget]
+    [budget, userId]
   );
 
   const handleError = (code: string) => {

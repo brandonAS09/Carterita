@@ -52,6 +52,12 @@ export const getLocalRangeISOForKeys = (fromKey: string, toKey: string): { start
 export const formatLongDate = (dateKey: string): string =>
   parseDateKey(dateKey).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' });
 
+/** Fecha corta para el eje de una gráfica: "3 nov". */
+export const formatShortDate = (dateKey: string): string =>
+  parseDateKey(dateKey)
+    .toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+    .replace('.', '');
+
 /** Encabezado de un grupo de movimientos: "Hoy", "Ayer" o "3 de noviembre". */
 export const formatDayLabel = (dateKey: string, hoy: string = toLocalDateKey()): string => {
   const dias = diffInDays(dateKey, hoy);

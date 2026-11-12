@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DollarSign, FileText, LayoutGrid } from 'lucide-react-native';
@@ -7,6 +7,8 @@ import { SPACING, ThemeColors, TYPOGRAPHY } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
 import { budgetService } from '../src/services/budgetService';
 import { transactionService, Categoria } from '../src/services/transactionService';
+import { categoryPreferenceService } from '../src/services/categoryPreferenceService';
+import { suggestCategory } from '../src/utils/voiceExpenseParser';
 import { getCurrencySymbol } from '../src/utils/currencyUtils';
 import { notifySuccess } from '../src/utils/feedback';
 import { CategoryIcon } from '../src/theme/categoryIcons';
@@ -16,6 +18,8 @@ import Button from '../src/components/ui/Button';
 import TextField from '../src/components/ui/TextField';
 import Card from '../src/components/ui/Card';
 import { Banner, FormSection } from '../src/components/ui/Form';
+
+const CATEGORY_SUGGESTION_DELAY_MS = 400;
 
 export default function AddExpenseScreen({ navigation }: any) {
   const { colors } = useTheme();
@@ -44,6 +48,29 @@ export default function AddExpenseScreen({ navigation }: any) {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // F09: sugiere la categoría al terminar de escribir, sin reemplazar nunca la elección del usuario
+  const userPickedCategory = useRef(false);
+  const [isCategorySuggested, setIsCategorySuggested] = useState(false);
+
+  useEffect(() => {
+    if (userPickedCategory.current || !userId) return;
+    const timer = setTimeout(async () => {
+      const text = concepto.trim();
+      const nombre = text ? await categoryPreferenceService.suggest(userId, text, suggestCategory(text)) : null;
+      if (userPickedCategory.current) return;
+      const suggestion = categorias.find((c) => c.nombre === nombre) ?? null;
+      setCategoriaSeleccionada(suggestion);
+      setIsCategorySuggested(suggestion !== null);
+    }, CATEGORY_SUGGESTION_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [concepto, userId, categorias]);
+
+  const handleCategoryChange = (categoria: Categoria | null) => {
+    userPickedCategory.current = true;
+    setIsCategorySuggested(false);
+    setCategoriaSeleccionada(categoria);
+  };
 
   const loadInitialData = async () => {
     try {
@@ -129,7 +156,7 @@ export default function AddExpenseScreen({ navigation }: any) {
           />
         </FormSection>
 
-        <FormSection title="Categoría" icon={LayoutGrid} badge="Opcional">
+        <FormSection title="Categoría" icon={LayoutGrid} badge={isCategorySuggested ? 'Sugerida' : 'Opcional'}>
           {loadingCats ? (
             <View style={styles.catsLoading}>
               <ActivityIndicator color={colors.primary} size="small" />
@@ -139,7 +166,7 @@ export default function AddExpenseScreen({ navigation }: any) {
             <CategoryPicker
               categorias={categorias}
               selectedId={categoriaSeleccionada?.id ?? null}
-              onChange={setCategoriaSeleccionada}
+              onChange={handleCategoryChange}
             />
           )}
         </FormSection>

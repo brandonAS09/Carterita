@@ -1,5 +1,5 @@
 import { describe, test, expect } from '@jest/globals';
-import { darkColors, lightColors, ThemeColors } from '../theme';
+import { CATEGORY_CHART_SLOTS, darkColors, lightColors, ThemeColors } from '../theme';
 
 /** Sección 2.3 de la guía: un cambio de color no puede romper la accesibilidad sin que se note. */
 const TEXT_MIN = 4.5;
@@ -27,7 +27,7 @@ const blend = (fg: string, bg: string, alpha: number) => {
     .join('')}`;
 };
 
-type Key = keyof ThemeColors;
+type Key = Exclude<keyof ThemeColors, 'chart'>;
 
 const TEXT_PAIRS: [Key, Key][] = [
   ['text', 'background'],
@@ -73,6 +73,21 @@ describe.each([
 
   test('el texto blanco sobre el chip de la cabecera cumple 4.5:1', () => {
     expect(contrast('#FFFFFF', blend('#000000', colors.heroEnd, 0.22))).toBeGreaterThanOrEqual(TEXT_MIN);
+  });
+});
+
+describe.each([
+  ['claro', lightColors],
+  ['oscuro', darkColors],
+])('paleta de gráficas del tema %s (D25)', (_nombre, colors) => {
+  test('tiene un color por categoría y ninguno se repite', () => {
+    expect(new Set(colors.chart).size).toBe(Object.keys(CATEGORY_CHART_SLOTS).length);
+  });
+
+  test('no reutiliza los colores de estado', () => {
+    [colors.error, colors.success, colors.warning].forEach((status) => {
+      expect(colors.chart.map((c) => c.toLowerCase())).not.toContain(status.toLowerCase());
+    });
   });
 });
 
