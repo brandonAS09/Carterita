@@ -86,6 +86,11 @@ Por defecto la app usa la API publicada. Para usar una API local:
 
 Para el build de desarrollo de Android, con lectura de tickets y voz en el teléfono: `npx expo run:android`.
 
+## Bitácora y decisiones
+
+- [BITACORA_IA.md](BITACORA_IA.md): cómo se usó la IA en cada sprint, qué se rechazó y qué errores se detectaron.
+- [DECISIONES.md](DECISIONES.md): diario de decisiones de diseño y producto, con alternativas y motivos.
+
 ## API publicada
 
 `https://carterita-api-r4u1.onrender.com` (plan gratuito: si estuvo inactiva, la primera petición tarda cerca de un minuto en despertar el servidor).
