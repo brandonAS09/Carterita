@@ -13,6 +13,7 @@ import { getCurrencySymbol } from '../src/utils/currencyUtils';
 import { notifySuccess } from '../src/utils/feedback';
 import { CategoryIcon } from '../src/theme/categoryIcons';
 import CategoryPicker from '../src/components/CategoryPicker';
+import ShareWithGroupPicker from '../src/components/ShareWithGroupPicker';
 import HeroHeader from '../src/components/ui/HeroHeader';
 import Button from '../src/components/ui/Button';
 import TextField from '../src/components/ui/TextField';
@@ -32,6 +33,7 @@ export default function AddExpenseScreen({ navigation }: any) {
   // Campos del formulario
   const [montoText, setMontoText] = useState('');
   const [concepto, setConcepto] = useState('');
+  const [grupoId, setGrupoId] = useState<number | null>(null);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<Categoria | null>(null);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
 
@@ -111,7 +113,10 @@ export default function AddExpenseScreen({ navigation }: any) {
         userId,
         parsedMonto,
         concepto,
-        categoriaSeleccionada?.id ?? null
+        categoriaSeleccionada?.id ?? null,
+        'Manual',
+        undefined,
+        grupoId
       );
 
       // Feedback visual de éxito breve antes de volver
@@ -170,6 +175,8 @@ export default function AddExpenseScreen({ navigation }: any) {
             />
           )}
         </FormSection>
+
+        <ShareWithGroupPicker value={grupoId} onChange={setGrupoId} />
 
         <FormSection title="¿En qué lo gastaste?" icon={FileText}>
           <TextField

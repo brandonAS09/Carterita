@@ -1,95 +1,67 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getDb } from '../database/initDb';
-import { hashPassword, verifyPassword } from '../utils/passwordUtils';
+import { api, tokenStore } from '../api/client';
 
 export interface User {
   id: number;
   nombre: string;
   email: string;
-  password_hash: string;
 }
 
-export const authService = {
-  // Registro de nuevo usuario
-  register: async (nombre: string, email: string, password: string): Promise<User> => {
-    const db = await getDb();
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanNombre = nombre.trim();
+interface RespuestaSesion {
+  token: string;
+  usuario: User & { zonaHoraria: string };
+}
 
-    // Verificar si el correo ya existe
-    const existing = await db.getFirstAsync<User>(
-      'SELECT id FROM Usuario WHERE email = ?',
-      [cleanEmail]
-    );
-
-    if (existing) {
-      throw new Error('El correo electrónico ya se encuentra registrado.');
-    }
-
-    // Insertar nuevo usuario (la contraseña nunca se guarda en texto plano)
-    const passwordHash = await hashPassword(password);
-    const result = await db.runAsync(
-      'INSERT INTO Usuario (nombre, email, password_hash) VALUES (?, ?, ?)',
-      [cleanNombre, cleanEmail, passwordHash]
-    );
-
-    const newUser: User = {
-      id: result.lastInsertRowId,
-      nombre: cleanNombre,
-      email: cleanEmail,
-      password_hash: passwordHash,
-    };
-
-    // Guardar sesión activa en AsyncStorage
-    await AsyncStorage.setItem('userId', newUser.id.toString());
-    await AsyncStorage.setItem('userName', newUser.nombre);
-    await AsyncStorage.setItem('userEmail', newUser.email);
-
-    return newUser;
-  },
-
-  // Inicio de sesión
-  login: async (email: string, password: string): Promise<User> => {
-    const db = await getDb();
-    const cleanEmail = email.trim().toLowerCase();
-
-    const user = await db.getFirstAsync<User>(
-      'SELECT * FROM Usuario WHERE email = ?',
-      [cleanEmail]
-    );
-
-    if (!user) {
-      throw new Error('Correo o contraseña incorrectos.');
-    }
-
-    if (!(await verifyPassword(password, user.password_hash))) {
-      throw new Error('Correo o contraseña incorrectos.');
-    }
-
-    // Guardar sesión activa
-    await AsyncStorage.setItem('userId', user.id.toString());
-    await AsyncStorage.setItem('userName', user.nombre);
-    await AsyncStorage.setItem('userEmail', user.email);
-
-    return user;
-  },
-
-  // Cierre de sesión
-  logout: async () => {
-    await AsyncStorage.removeItem('userId');
-    await AsyncStorage.removeItem('userName');
-    await AsyncStorage.removeItem('userEmail');
-  },
-
-  // Obtener sesión activa
-  getActiveSession: async () => {
-    const userId = await AsyncStorage.getItem('userId');
-    const userName = await AsyncStorage.getItem('userName');
-    const userEmail = await AsyncStorage.getItem('userEmail');
-
-    if (userId && userName) {
-      return { id: Number(userId), nombre: userName, email: userEmail || '' };
-    }
-    return null;
+/** D30: la zona horaria del teléfono viaja con el registro y el login. */
+const zonaHoraria = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
   }
+};
+
+/** D32: el token va en SecureStore; nombre y correo en AsyncStorage para mostrarlos sin red. */
+const guardarSesion = async ({ token, usuario }: RespuestaSesion): Promise<User> => {
+  await tokenStore.set(token);
+  await AsyncStorage.multiSet([
+    ['userId', String(usuario.id)],
+    ['userName', usuario.nombre],
+    ['userEmail', usuario.email],
+  ]);
+  return { id: usuario.id, nombre: usuario.nombre, email: usuario.email };
+};
+
+export const authService = {
+  register: async (nombre: string, email: string, password: string): Promise<User> =>
+    guardarSesion(
+      await api<RespuestaSesion>('/auth/registro', {
+        method: 'POST',
+        auth: false,
+        body: { nombre: nombre.trim(), email: email.trim(), password, zonaHoraria: zonaHoraria() },
+      })
+    ),
+
+  login: async (email: string, password: string): Promise<User> =>
+    guardarSesion(
+      await api<RespuestaSesion>('/auth/login', {
+        method: 'POST',
+        auth: false,
+        body: { email: email.trim(), password, zonaHoraria: zonaHoraria() },
+      })
+    ),
+
+  /** Funciona sin red: solo borra lo guardado en el teléfono. */
+  logout: async () => {
+    await tokenStore.clear();
+    await AsyncStorage.multiRemove(['userId', 'userName', 'userEmail']);
+  },
+
+  /** Sesión guardada en el teléfono (sin consultar la red). */
+  getActiveSession: async (): Promise<User | null> => {
+    const token = await tokenStore.get();
+    const [[, userId], [, userName], [, userEmail]] = await AsyncStorage.multiGet(['userId', 'userName', 'userEmail']);
+    if (token && userId && userName) return { id: Number(userId), nombre: userName, email: userEmail || '' };
+    return null;
+  },
 };

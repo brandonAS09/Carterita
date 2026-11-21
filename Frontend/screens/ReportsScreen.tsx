@@ -19,6 +19,7 @@ import Button from '../src/components/ui/Button';
 import Card from '../src/components/ui/Card';
 import { Chip } from '../src/components/ui/Form';
 import { EmptyState, ErrorState, Skeleton } from '../src/components/ui/States';
+import { mensajeDeError } from '../src/api/client';
 
 const MIN_DAYS_FOR_BARS = 2;
 const LARGE_TEXT_SCALE = 1.3;
@@ -36,6 +37,7 @@ export default function ReportsScreen({ navigation }: any) {
   const [report, setReport] = useState<Report | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loadMessage, setLoadMessage] = useState('');
   const hasLoadedOnce = useRef(false);
 
   const load = useCallback(
@@ -68,6 +70,7 @@ export default function ReportsScreen({ navigation }: any) {
       } catch (error) {
         console.error('Error cargando reportes:', error);
         setLoadFailed(true);
+        setLoadMessage(mensajeDeError(error, 'No pudimos preparar tus reportes. Inténtalo de nuevo.'));
       } finally {
         setIsLoading(false);
       }
@@ -113,7 +116,7 @@ export default function ReportsScreen({ navigation }: any) {
       return [120, 280, 200].map((height) => <Skeleton key={height} width="100%" height={height} style={styles.skeleton} />);
     }
     if (loadFailed || !report) {
-      return <ErrorState message="No pudimos preparar tus reportes. Inténtalo de nuevo." onRetry={() => load(periodKey)} />;
+      return <ErrorState message={loadMessage} onRetry={() => load(periodKey)} />;
     }
     if (report.total <= 0) {
       return (

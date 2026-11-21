@@ -24,7 +24,6 @@
     },
     "plugins": [
       "expo-status-bar",
-      "expo-sqlite",
       [
         "expo-speech-recognition",
         {
@@ -56,6 +55,13 @@
             "image": "./assets/splash-icon.png",
             "backgroundColor": "#23124F"
           }
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Carterita usa el micrófono para que registres tus gastos dictándolos."
         }
       ]
     ]

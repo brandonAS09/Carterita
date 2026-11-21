@@ -14,6 +14,7 @@ import TextField from '../src/components/ui/TextField';
 import { Chip } from '../src/components/ui/Form';
 import { TransactionRow } from '../src/components/ui/HomeBlocks';
 import { EmptyState, ErrorState, Skeleton } from '../src/components/ui/States';
+import { mensajeDeError } from '../src/api/client';
 
 const formatTime = (fecha: string) =>
   new Date(fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
@@ -30,6 +31,7 @@ export default function HistoryScreen({ navigation, route }: any) {
   const [categoriaId, setCategoriaId] = useState<number | null>(route.params?.categoriaId ?? null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loadMessage, setLoadMessage] = useState('');
 
   const hasLoadedOnce = useRef(false);
 
@@ -55,6 +57,7 @@ export default function HistoryScreen({ navigation, route }: any) {
     } catch (error) {
       console.error('Error cargando el historial:', error);
       setLoadFailed(true);
+      setLoadMessage(mensajeDeError(error, 'No pudimos cargar tu historial. Inténtalo de nuevo.'));
     } finally {
       setIsLoading(false);
     }
@@ -86,7 +89,7 @@ export default function HistoryScreen({ navigation, route }: any) {
       ));
     }
     if (loadFailed) {
-      return <ErrorState message="No pudimos cargar tu historial. Inténtalo de nuevo." onRetry={load} />;
+      return <ErrorState message={loadMessage} onRetry={load} />;
     }
     if (groups.length === 0) {
       const hasFilters = !!query.trim() || categoriaId !== null;

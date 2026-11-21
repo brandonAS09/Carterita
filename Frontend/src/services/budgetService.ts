@@ -1,7 +1,6 @@
-import { getDb, cycleLengthInDays } from '../database/initDb';
-import { addDaysToKey, toLocalDateKey } from '../utils/dateUtils';
-import { resolveCurrentCycle } from '../utils/smartBudgetCalculator';
-import { Moneda, getConversionFactor } from '../utils/currencyUtils';
+import { api, ApiError } from '../api/client';
+import { addDaysToKey } from '../utils/dateUtils';
+import { Moneda } from '../utils/currencyUtils';
 
 export type TipoCiclo = 'Diario' | 'Semanal' | 'Mensual';
 
@@ -12,7 +11,7 @@ export interface Presupuesto {
   tipo_ciclo: TipoCiclo;
   moneda: Moneda;
   fecha_inicio: string; // 'YYYY-MM-DD' local
-  fecha_fin: string;    // 'YYYY-MM-DD' local, inclusiva
+  fecha_fin: string; // 'YYYY-MM-DD' local, inclusiva
   tipo_cambio_usd: number | null; // última tasa usada: 1 USD = X MXN
 }
 
@@ -23,152 +22,47 @@ export interface BudgetChanges {
   tipoCambioUsd?: number; // obligatorio si cambia la moneda
 }
 
+const DIAS_POR_CICLO: Record<TipoCiclo, number> = { Diario: 1, Semanal: 7, Mensual: 30 };
+
+/** Sin presupuesto el servidor responde 404: para la app eso es "todavía no lo configura". */
+const presupuestoONull = async (): Promise<Presupuesto | null> => {
+  try {
+    return (await api<{ presupuesto: Presupuesto }>('/presupuesto')).presupuesto;
+  } catch (error) {
+    if (error instanceof ApiError && error.tipo === 'NoEncontrado') return null;
+    throw error;
+  }
+};
+
+/**
+ * El `userId` se conserva en las firmas para no cambiar las pantallas;
+ * el servidor identifica al usuario por su token.
+ */
 export const budgetService = {
-  // Obtener el presupuesto actual del usuario
-  getBudgetByUserId: async (userId: number): Promise<Presupuesto | null> => {
-    const db = await getDb();
-    const budget = await db.getFirstAsync<Presupuesto>(
-      'SELECT * FROM Presupuesto WHERE usuario_id = ? ORDER BY id DESC LIMIT 1',
-      [userId]
-    );
-    return budget || null;
-  },
+  getBudgetByUserId: async (_userId: number): Promise<Presupuesto | null> => presupuestoONull(),
 
-  /**
-   * F06: renovación automática. Si el ciclo terminó, avanza a ciclos contiguos
-   * (mismo monto y tipo) hasta cubrir hoy y lo persiste.
-   */
-  ensureCurrentCycle: async (userId: number): Promise<Presupuesto | null> => {
-    const budget = await budgetService.getBudgetByUserId(userId);
-    if (!budget) return null;
+  /** F06: el servidor renueva el ciclo si ya terminó. */
+  ensureCurrentCycle: async (_userId: number): Promise<Presupuesto | null> => presupuestoONull(),
 
-    const fechaFinActual =
-      budget.fecha_fin ?? budgetService.calculateCycleEnd(budget.fecha_inicio, budget.tipo_ciclo);
-    const ciclo = resolveCurrentCycle(
-      { fechaInicio: budget.fecha_inicio, fechaFin: fechaFinActual },
-      toLocalDateKey()
-    );
-    if (!ciclo.renovado) return { ...budget, fecha_fin: fechaFinActual };
+  createBudget: async (_userId: number, montoBase: number, tipoCiclo: TipoCiclo, moneda: Moneda): Promise<Presupuesto> =>
+    (await api<{ presupuesto: Presupuesto }>('/presupuesto', { method: 'POST', body: { montoBase, tipoCiclo, moneda } }))
+      .presupuesto,
 
-    const db = await getDb();
-    await db.runAsync('UPDATE Presupuesto SET fecha_inicio = ?, fecha_fin = ? WHERE id = ?', [
-      ciclo.fechaInicio,
-      ciclo.fechaFin,
-      budget.id,
-    ]);
-    return { ...budget, fecha_inicio: ciclo.fechaInicio, fecha_fin: ciclo.fechaFin };
-  },
+  /** S1.1-06: el servidor aplica todo en una transacción (incluida la conversión de moneda). */
+  updateBudget: async (_userId: number, changes: BudgetChanges): Promise<Presupuesto> =>
+    (await api<{ presupuesto: Presupuesto }>('/presupuesto', { method: 'PUT', body: changes })).presupuesto,
 
-  // Onboarding (F01): primer presupuesto del usuario, el ciclo inicia hoy
-  createBudget: async (
-    userId: number,
-    montoBase: number,
-    tipoCiclo: TipoCiclo,
-    moneda: Moneda
-  ): Promise<Presupuesto> => {
-    const db = await getDb();
-    const fechaInicio = toLocalDateKey();
-    const fechaFin = budgetService.calculateCycleEnd(fechaInicio, tipoCiclo);
-
-    const result = await db.runAsync(
-      `INSERT INTO Presupuesto (usuario_id, monto_base, tipo_ciclo, moneda, fecha_inicio, fecha_fin)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [userId, montoBase, tipoCiclo, moneda, fechaInicio, fechaFin]
-    );
-    return {
-      id: result.lastInsertRowId,
-      usuario_id: userId,
-      monto_base: montoBase,
-      tipo_ciclo: tipoCiclo,
-      moneda,
-      fecha_inicio: fechaInicio,
-      fecha_fin: fechaFin,
-      tipo_cambio_usd: null,
-    };
-  },
-
-  /**
-   * Edición de presupuesto (S1.1-06). Reglas:
-   *  - Solo monto:      el ciclo continúa (mismas fechas).
-   *  - Moneda:          se convierten TODOS los montos del usuario (gastos y metas) con la tasa capturada.
-   *  - Tipo de ciclo:   inicia un ciclo nuevo hoy; los gastos de días anteriores dejan de contar.
-   * Todo ocurre en una sola transacción: si algo falla, no se aplica nada.
-   */
-  updateBudget: async (userId: number, changes: BudgetChanges): Promise<Presupuesto> => {
-    const db = await getDb();
-    const current = await budgetService.getBudgetByUserId(userId);
-    if (!current) throw new Error('No existe un presupuesto para editar.');
-
-    const currencyChanged = changes.moneda !== current.moneda;
-    const tasa = changes.tipoCambioUsd;
-    if (currencyChanged && !(tasa !== undefined && tasa > 0 && isFinite(tasa))) {
-      throw new Error('Tipo de cambio inválido.');
-    }
-
-    const cycleChanged = changes.tipoCiclo !== current.tipo_ciclo;
-    const fechaInicio = cycleChanged ? toLocalDateKey() : current.fecha_inicio;
-    const fechaFin = cycleChanged
-      ? budgetService.calculateCycleEnd(fechaInicio, changes.tipoCiclo)
-      : current.fecha_fin ?? budgetService.calculateCycleEnd(current.fecha_inicio, current.tipo_ciclo);
-    const tipoCambioUsd = currencyChanged ? tasa! : current.tipo_cambio_usd;
-
-    await db.withTransactionAsync(async () => {
-      if (currencyChanged) {
-        // monto_base no se convierte aquí: el formulario ya envía el valor en la moneda destino.
-        const factor = getConversionFactor(current.moneda, changes.moneda, tasa!);
-        await db.runAsync(
-          'UPDATE Transaccion SET monto = ROUND(monto * ?, 2) WHERE usuario_id = ?',
-          [factor, userId]
-        );
-        await db.runAsync(
-          `UPDATE MetaAhorro
-           SET monto_objetivo = ROUND(monto_objetivo * ?, 2),
-               monto_acumulado = ROUND(monto_acumulado * ?, 2)
-           WHERE usuario_id = ?`,
-          [factor, factor, userId]
-        );
-        await db.runAsync(
-          'UPDATE AporteMeta SET monto = ROUND(monto * ?, 2) WHERE usuario_id = ?',
-          [factor, userId]
-        );
-      }
-
-      await db.runAsync(
-        `UPDATE Presupuesto
-         SET monto_base = ?, tipo_ciclo = ?, moneda = ?, fecha_inicio = ?, fecha_fin = ?, tipo_cambio_usd = ?
-         WHERE id = ?`,
-        [changes.montoBase, changes.tipoCiclo, changes.moneda, fechaInicio, fechaFin, tipoCambioUsd, current.id]
-      );
-    });
-
-    return {
-      ...current,
-      monto_base: changes.montoBase,
-      tipo_ciclo: changes.tipoCiclo,
-      moneda: changes.moneda,
-      fecha_inicio: fechaInicio,
-      fecha_fin: fechaFin,
-      tipo_cambio_usd: tipoCambioUsd,
-    };
-  },
-
-  // D1 (F03): guarda la tasa capturada al dictar un monto en otra moneda
-  setExchangeRate: async (userId: number, tipoCambioUsd: number): Promise<void> => {
-    if (!(tipoCambioUsd > 0 && isFinite(tipoCambioUsd))) throw new Error('Tipo de cambio inválido.');
-    const db = await getDb();
-    await db.runAsync('UPDATE Presupuesto SET tipo_cambio_usd = ? WHERE usuario_id = ?', [
-      tipoCambioUsd,
-      userId,
-    ]);
+  setExchangeRate: async (_userId: number, tipoCambioUsd: number): Promise<void> => {
+    await api('/presupuesto/tipo-cambio', { method: 'PUT', body: { tipoCambioUsd } });
   },
 
   // Último día (inclusivo) del ciclo: Diario = mismo día, Semanal = +6, Mensual = +29
   calculateCycleEnd: (fechaInicio: string, tipoCiclo: TipoCiclo): string =>
-    addDaysToKey(fechaInicio, cycleLengthInDays(tipoCiclo) - 1),
+    addDaysToKey(fechaInicio, DIAS_POR_CICLO[tipoCiclo] - 1),
 
   // Cálculo preliminar (estático) del límite diario según el ciclo elegido
   calculateDailyLimit: (montoBase: number, tipoCiclo: TipoCiclo): number => {
     if (montoBase <= 0 || isNaN(montoBase)) return 0;
-    return montoBase / cycleLengthInDays(tipoCiclo);
+    return montoBase / DIAS_POR_CICLO[tipoCiclo];
   },
 };

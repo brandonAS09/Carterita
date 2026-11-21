@@ -28,6 +28,7 @@ import HeroHeader from '../src/components/ui/HeroHeader';
 import Button from '../src/components/ui/Button';
 import TextField from '../src/components/ui/TextField';
 import { Banner, Chip, FormSection } from '../src/components/ui/Form';
+import { mensajeDeError } from '../src/api/client';
 
 const CICLOS: { tipo: TipoCiclo; label: string; desc: string }[] = [
   { tipo: 'Diario', label: 'Diario', desc: 'Renovación cada día' },
@@ -106,8 +107,8 @@ export default function BudgetSetupScreen({ navigation, route }: any) {
           );
         }
       }
-    } catch {
-      setErrorMessage('No se pudo cargar tu configuración actual.');
+    } catch (error) {
+      setErrorMessage(mensajeDeError(error, 'No se pudo cargar tu configuración actual.'));
     } finally {
       setIsInitializing(false);
     }
@@ -200,7 +201,7 @@ export default function BudgetSetupScreen({ navigation, route }: any) {
       }
     } catch (error) {
       console.error('Error al guardar el presupuesto:', error);
-      setErrorMessage(SAVE_ERROR);
+      setErrorMessage(mensajeDeError(error, SAVE_ERROR));
     } finally {
       setIsLoading(false);
     }

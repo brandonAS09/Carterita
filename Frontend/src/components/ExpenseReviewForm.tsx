@@ -8,9 +8,11 @@ import type { Categoria } from '../services/transactionService';
 import { convertAmount, formatAmount, getCurrencySymbol, Moneda, round2 } from '../utils/currencyUtils';
 import { notifySuccess } from '../utils/feedback';
 import CategoryPicker from './CategoryPicker';
+import ShareWithGroupPicker from './ShareWithGroupPicker';
 import Button from './ui/Button';
 import TextField from './ui/TextField';
 import { Banner, FormSection } from './ui/Form';
+import { mensajeDeError } from '../api/client';
 
 const MSG_SAVE_ERROR = 'Ocurrió un error al guardar el gasto. Inténtalo de nuevo.';
 
@@ -29,6 +31,8 @@ export interface ExpenseReviewValues {
   monto: number;
   concepto: string;
   categoriaId: number | null;
+  /** S8-03: grupo con el que se comparte, o null. */
+  grupoId: number | null;
 }
 
 interface ExpenseReviewFormProps {
@@ -47,6 +51,8 @@ interface ExpenseReviewFormProps {
   /** Registra el gasto y sale de la pantalla. Si falla, el formulario muestra el error. */
   onSave: (values: ExpenseReviewValues) => Promise<void>;
   saveLabel?: string;
+  /** Muestra "Compartir con…" (registro nuevo, no al editar). */
+  allowShare?: boolean;
   /** Al editar un gasto, su categoría ya no es una sugerencia. */
   hideCategoryBadge?: boolean;
 }
@@ -64,7 +70,9 @@ export default function ExpenseReviewForm({
   onSave,
   saveLabel = 'Guardar gasto',
   hideCategoryBadge,
+  allowShare,
 }: ExpenseReviewFormProps) {
+  const [grupoId, setGrupoId] = useState<number | null>(null);
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const monedaPresupuesto = budget?.moneda ?? 'MXN';
@@ -119,11 +127,11 @@ export default function ExpenseReviewForm({
     setSaveError(null);
     try {
       if (needsRate) await budgetService.setExchangeRate(userId, parsedTasa);
-      await onSave({ monto: round2(parsedMonto), concepto, categoriaId: categoria?.id ?? null });
+      await onSave({ monto: round2(parsedMonto), concepto, categoriaId: categoria?.id ?? null, grupoId });
       notifySuccess();
     } catch (error) {
       console.error('Error al guardar el gasto:', error);
-      setSaveError(MSG_SAVE_ERROR);
+      setSaveError(mensajeDeError(error, MSG_SAVE_ERROR));
       setIsSaving(false);
     }
   };
@@ -217,6 +225,8 @@ export default function ExpenseReviewForm({
       <FormSection title="Categoría" icon={LayoutGrid} badge={hideCategoryBadge ? 'Opcional' : initial.categoria ? 'Sugerida' : 'Opcional'}>
         <CategoryPicker categorias={categorias} selectedId={categoria?.id ?? null} onChange={setCategoria} />
       </FormSection>
+
+      {allowShare && <ShareWithGroupPicker value={grupoId} onChange={setGrupoId} />}
 
       {extra}
 

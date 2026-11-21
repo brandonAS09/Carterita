@@ -15,6 +15,7 @@ import Card from '../src/components/ui/Card';
 import DatePickerDialog from '../src/components/ui/DatePickerDialog';
 import { Banner } from '../src/components/ui/Form';
 import { ErrorState } from '../src/components/ui/States';
+import { mensajeDeError } from '../src/api/client';
 
 const MSG_DELETE_ERROR = 'No se pudo eliminar el gasto. Inténtalo de nuevo.';
 
@@ -29,6 +30,7 @@ export default function EditExpenseScreen({ navigation, route }: any) {
   const [budget, setBudget] = useState<Presupuesto | null>(null);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [fechaKey, setFechaKey] = useState('');
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
@@ -37,6 +39,7 @@ export default function EditExpenseScreen({ navigation, route }: any) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setLoadError(null);
     setIsLoading(true);
     try {
       const session = await authService.getActiveSession();
@@ -53,10 +56,11 @@ export default function EditExpenseScreen({ navigation, route }: any) {
       setExpense(tx);
       setBudget(b);
       setCategorias(cats);
-      if (tx) setFechaKey(toLocalDateKey(new Date(tx.fecha)));
+      if (tx) setFechaKey(tx.fecha_local ?? toLocalDateKey(new Date(tx.fecha)));
     } catch (error) {
       console.error('Error al cargar el gasto:', error);
       setExpense(null);
+      setLoadError(mensajeDeError(error));
     } finally {
       setIsLoading(false);
     }
@@ -87,7 +91,7 @@ export default function EditExpenseScreen({ navigation, route }: any) {
       navigation.goBack();
     } catch (error) {
       console.error('Error al eliminar el gasto:', error);
-      setDeleteError(MSG_DELETE_ERROR);
+      setDeleteError(mensajeDeError(error, MSG_DELETE_ERROR));
       setIsDeleting(false);
     }
   };
@@ -100,8 +104,11 @@ export default function EditExpenseScreen({ navigation, route }: any) {
         </View>
       );
     }
+    if (loadError) {
+      return <ErrorState message={loadError} onRetry={load} />;
+    }
     if (!expense) {
-      return <ErrorState message="No encontramos este gasto. Puede que ya se haya eliminado." />;
+      return <ErrorState message="Este gasto ya no existe. Puede que se haya eliminado desde otro dispositivo." />;
     }
     return (
       <ExpenseReviewForm

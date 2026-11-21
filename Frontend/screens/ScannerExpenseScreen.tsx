@@ -158,14 +158,15 @@ export default function ScannerExpenseScreen({ navigation }: any) {
   const ticketDate =
     budget && isTicketDateUsable(receipt.fecha, toLocalDateKey(), budget.fecha_inicio) ? receipt.fecha : null;
 
-  const handleSave = async ({ monto, concepto, categoriaId }: ExpenseReviewValues) => {
+  const handleSave = async ({ monto, concepto, categoriaId, grupoId }: ExpenseReviewValues) => {
     await transactionService.addTransaction(
       userId!,
       monto,
       concepto,
       categoriaId,
       'OCR',
-      useTicketDate && ticketDate ? ticketDate : undefined
+      useTicketDate && ticketDate ? ticketDate : undefined,
+      grupoId
     );
     navigation.goBack(); // el Dashboard se actualiza al recibir foco
   };
@@ -294,6 +295,7 @@ export default function ScannerExpenseScreen({ navigation }: any) {
               />
             )}
             onSave={handleSave}
+            allowShare
           />
         );
 

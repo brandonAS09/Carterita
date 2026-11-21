@@ -242,8 +242,8 @@ export default function VoiceExpenseScreen({ navigation }: any) {
     navigation.replace('AddExpense');
   };
 
-  const handleSave = async ({ monto, concepto, categoriaId }: ExpenseReviewValues) => {
-    await transactionService.addTransaction(userId!, monto, concepto, categoriaId, 'Voz');
+  const handleSave = async ({ monto, concepto, categoriaId, grupoId }: ExpenseReviewValues) => {
+    await transactionService.addTransaction(userId!, monto, concepto, categoriaId, 'Voz', undefined, grupoId);
     navigation.goBack(); // el Dashboard se actualiza al recibir foco
   };
 
@@ -429,6 +429,7 @@ export default function VoiceExpenseScreen({ navigation }: any) {
         />
       )}
       onSave={handleSave}
+      allowShare
     />
   );
 

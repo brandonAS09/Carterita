@@ -13,6 +13,7 @@ import HeroHeader from '../src/components/ui/HeroHeader';
 import Button from '../src/components/ui/Button';
 import TextField from '../src/components/ui/TextField';
 import { Banner, Chip, FormSection } from '../src/components/ui/Form';
+import { mensajeDeError } from '../src/api/client';
 
 const PLAZOS: { label: string; days: number | null }[] = [
   { label: 'Sin fecha', days: null },
@@ -28,7 +29,9 @@ const formatDate = (key: string) => {
 };
 
 /** F07 - Crear meta de ahorro. */
-export default function CreateGoalScreen({ navigation }: any) {
+export default function CreateGoalScreen({ navigation, route }: any) {
+  // S8-02: si llega desde un grupo, la meta es del grupo
+  const { grupoId = null, grupoNombre = null } = (route?.params ?? {}) as { grupoId?: number | null; grupoNombre?: string | null };
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [userId, setUserId] = useState<number | null>(null);
@@ -69,18 +72,18 @@ export default function CreateGoalScreen({ navigation }: any) {
     setIsSaving(true);
     setErrorMessage(null);
     try {
-      await goalService.createGoal(userId, { nombre, montoObjetivo: objetivo, icono, fechaLimite });
+      await goalService.createGoal(userId, { nombre, montoObjetivo: objetivo, icono, fechaLimite, grupoId });
       navigation.goBack();
     } catch (error) {
       console.error('Error al crear meta:', error);
-      setErrorMessage('Ocurrió un error al crear la meta. Inténtalo de nuevo.');
+      setErrorMessage(mensajeDeError(error, 'Ocurrió un error al crear la meta. Inténtalo de nuevo.'));
       setIsSaving(false);
     }
   };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.screen}>
-      <HeroHeader title="Nueva Meta" onBack={() => navigation.goBack()} />
+      <HeroHeader title={grupoNombre ? `Meta de ${grupoNombre}` : "Nueva Meta"} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {errorMessage && <Banner tone="error" message={errorMessage} />}
