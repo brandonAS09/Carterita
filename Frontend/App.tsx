@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavigationContainer, DarkTheme, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Alert, View } from 'react-native';
+import { Alert, LogBox, View } from 'react-native';
 import { ChartPie, House, PiggyBank, Users } from 'lucide-react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -33,6 +33,9 @@ import { MIN_TOUCH, TYPOGRAPHY } from './src/theme/theme';
 
 // Sigue visible hasta aplicar el tema y las fuentes, para evitar un destello (sección 8 de la guía)
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Los errores de red esperados ya se muestran en pantalla; en desarrollo no deben tapar la app
+LogBox.ignoreLogs(['ApiError']);
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();

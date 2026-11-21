@@ -12,6 +12,9 @@ import {
   Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
+import { readingService } from '../src/services/readingService';
+import { mensajeDeError } from '../src/api/client';
 import { Mic, Square, MicOff, Settings, PenLine, RotateCcw, Info } from 'lucide-react-native';
 import { useTheme, useThemedStyles } from '../src/theme/ThemeProvider';
 import { RADIUS, SPACING, ThemeColors, TYPOGRAPHY } from '../src/theme/theme';
@@ -38,6 +41,7 @@ type Phase =
   | 'permission-denied'
   | 'idle'
   | 'listening'
+  | 'transcribing'
   | 'no-amount'
   | 'review';
 
@@ -53,6 +57,12 @@ export default function VoiceExpenseScreen({ navigation }: any) {
   const styles = useThemedStyles(createStyles);
   const reduceMotion = useReducedMotion();
   const [phase, setPhase] = useState<Phase>('checking');
+
+  // D44: sin el reconocimiento nativo (Expo Go, iPhone) se graba el audio y lo transcribe el servidor
+  const [useServer] = useState(() => voiceRecognitionService.getAvailability() === 'needs-dev-build');
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const MAX_GRABACION_MS = 15_000;
   const [userId, setUserId] = useState<number | null>(null);
   const [budget, setBudget] = useState<Presupuesto | null>(null);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -76,8 +86,8 @@ export default function VoiceExpenseScreen({ navigation }: any) {
   useEffect(() => {
     const init = async () => {
       const availability = voiceRecognitionService.getAvailability();
-      if (availability !== 'available') {
-        setPhase(availability === 'needs-dev-build' ? 'needs-dev-build' : 'unavailable');
+      if (availability === 'unavailable') {
+        setPhase('unavailable');
         return;
       }
       try {
@@ -94,14 +104,17 @@ export default function VoiceExpenseScreen({ navigation }: any) {
         setBudget(b);
         setCategorias(cats);
         setPhase('idle');
-      } catch {
-        setNotice('No se pudieron cargar tus datos. Intenta de nuevo.');
+      } catch (error) {
+        setNotice(mensajeDeError(error, 'No se pudieron cargar tus datos. Intenta de nuevo.'));
         setPhase('idle');
       }
     };
     init();
     // Escenario 8: al salir de la pantalla se cancela cualquier grabación
-    return () => voiceRecognitionService.abort();
+    return () => {
+      voiceRecognitionService.abort();
+      if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+    };
   }, [navigation]);
 
   // ─────────────────────────────────────────────
@@ -187,12 +200,60 @@ export default function VoiceExpenseScreen({ navigation }: any) {
   // ─────────────────────────────────────────────
   // Acciones de dictado
   // ─────────────────────────────────────────────
+  // ── Grabación + transcripción en el servidor (Expo Go) ──
+  const startRecording = async () => {
+    const permiso = await requestRecordingPermissionsAsync();
+    if (!permiso.granted) {
+      setPhase('permission-denied');
+      return;
+    }
+    try {
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setPhase('listening');
+      stopTimerRef.current = setTimeout(() => finishRecording(), MAX_GRABACION_MS);
+    } catch {
+      setNotice('No se pudo iniciar el micrófono. Intenta de nuevo.');
+      setPhase('idle');
+    }
+  };
+
+  const finishRecording = async () => {
+    if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+    stopTimerRef.current = null;
+    if (phaseRef.current !== 'listening') return;
+    setPhase('transcribing');
+    try {
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+      if (!recorder.uri) throw new Error('Sin grabación');
+      const texto = await readingService.transcribe(recorder.uri);
+      if (!texto.trim()) {
+        setNotice(MSG_NO_SPEECH);
+        setPhase('idle');
+        return;
+      }
+      setPartial(texto);
+      await processTranscript(texto);
+    } catch (error) {
+      // Sin red o con el servicio caído: se explica y se ofrece registrar a mano
+      setNotice(mensajeDeError(error, 'No pudimos entender el audio. Intenta de nuevo o registra el gasto a mano.'));
+      setPhase('idle');
+    }
+  };
+
   const startListening = async () => {
     setNotice(null);
     setPartial('');
     setParsed(null);
     transcriptRef.current = '';
     errorHandledRef.current = false;
+
+    if (useServer) {
+      await startRecording();
+      return;
+    }
 
     const config = await voiceRecognitionService.resolveConfig();
     configRef.current = config;
@@ -226,6 +287,10 @@ export default function VoiceExpenseScreen({ navigation }: any) {
 
   const handleMicPress = () => {
     if (phase === 'listening') {
+      if (useServer) {
+        finishRecording();
+        return;
+      }
       voiceRecognitionService.stop(); // finaliza y dispara "end" con lo escuchado
     } else {
       startListening();
@@ -292,6 +357,16 @@ export default function VoiceExpenseScreen({ navigation }: any) {
           </View>
         );
 
+      case 'transcribing':
+        return (
+          <View style={styles.centerBlock}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.recorderSubtitle} accessibilityLiveRegion="polite">
+              Entendiendo lo que dijiste…
+            </Text>
+          </View>
+        );
+
       case 'needs-dev-build':
         return renderBlocked(
           'Dictado no disponible',
@@ -339,7 +414,11 @@ export default function VoiceExpenseScreen({ navigation }: any) {
       <View style={styles.recorder}>
         <Text style={styles.recorderTitle}>{isListening ? 'Te escucho…' : 'Dicta tu gasto'}</Text>
         <Text style={styles.recorderSubtitle}>
-          {isListening ? 'Toca de nuevo para terminar' : 'Toca el micrófono y di el monto y en qué lo gastaste'}
+          {isListening
+            ? useServer
+              ? 'Toca de nuevo para terminar (máximo 15 segundos)'
+              : 'Toca de nuevo para terminar'
+            : 'Toca el micrófono y di el monto y en qué lo gastaste'}
         </Text>
 
         <View style={styles.micArea}>
@@ -368,7 +447,7 @@ export default function VoiceExpenseScreen({ navigation }: any) {
             </Text>
           ) : (
             <Text style={styles.transcriptPlaceholder}>
-              {isListening ? 'Habla ahora…' : 'Aquí aparecerá lo que digas'}
+              {isListening ? (useServer ? 'Grabando… habla ahora' : 'Habla ahora…') : 'Aquí aparecerá lo que digas'}
             </Text>
           )}
         </View>
@@ -379,8 +458,7 @@ export default function VoiceExpenseScreen({ navigation }: any) {
           <View style={styles.infoRow}>
             <Info color={colors.textSecondary} size={14} />
             <Text style={styles.infoText}>
-              Este dispositivo usa el reconocimiento de voz del sistema, que puede requerir internet. Tus gastos se
-              siguen guardando solo en tu teléfono.
+              Este dispositivo usa el reconocimiento de voz del sistema, que puede requerir internet.
             </Text>
           </View>
         )}

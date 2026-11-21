@@ -14,6 +14,7 @@ import { notifySuccess } from '../src/utils/feedback';
 import { CategoryIcon } from '../src/theme/categoryIcons';
 import CategoryPicker from '../src/components/CategoryPicker';
 import ShareWithGroupPicker from '../src/components/ShareWithGroupPicker';
+import { mensajeDeError } from '../src/api/client';
 import HeroHeader from '../src/components/ui/HeroHeader';
 import Button from '../src/components/ui/Button';
 import TextField from '../src/components/ui/TextField';
@@ -87,8 +88,9 @@ export default function AddExpenseScreen({ navigation }: any) {
 
       const cats = await transactionService.getAllCategories();
       setCategorias(cats);
-    } catch {
-      setErrorMessage('Error al cargar los datos iniciales.');
+    } catch (error) {
+      // Sin red aún se puede intentar guardar después; el mensaje dice el motivo
+      setErrorMessage(mensajeDeError(error, 'Error al cargar los datos iniciales.'));
     } finally {
       setLoadingCats(false);
     }
