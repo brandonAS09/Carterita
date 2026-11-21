@@ -12,7 +12,7 @@ jest.mock('expo-secure-store', () => {
 import { api, ApiError, conIdempotencia, onSesionExpirada, tokenStore } from '../client';
 
 const respuesta = (status: number, body?: unknown) =>
-  ({ status, ok: status >= 200 && status < 300, json: async () => body }) as unknown as Response;
+  ({ status, ok: status >= 200 && status < 300, text: async () => (body === undefined ? "" : JSON.stringify(body)) }) as unknown as Response;
 
 const fetchMock = jest.fn<typeof fetch>();
 globalThis.fetch = fetchMock as unknown as typeof fetch;

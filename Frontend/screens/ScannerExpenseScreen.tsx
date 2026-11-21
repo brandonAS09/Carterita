@@ -304,7 +304,7 @@ export default function ScannerExpenseScreen({ navigation }: any) {
           ScanLine,
           colors.primary,
           'Escanea tu ticket',
-          'Busca buena luz y recorta la foto para que solo se vea el ticket. La lectura se hace en tu teléfono.',
+          `Busca buena luz y recorta la foto para que solo se vea el ticket. ${readingService.hasNativeOcr() ? 'La lectura se hace en tu teléfono.' : 'La foto se lee en el servidor de Carterita y no se guarda.'}`,
           <>
             <Button label="Tomar foto" icon={Camera} onPress={takePhoto} />
             {galleryButton}

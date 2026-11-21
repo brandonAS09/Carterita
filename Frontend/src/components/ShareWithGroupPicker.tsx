@@ -30,7 +30,7 @@ export default function ShareWithGroupPicker({ value, onChange }: Props) {
   return (
     <FormSection title="Compartir con" icon={Users} badge="Opcional">
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-        <Chip label="Solo para mí" selected={value === null} onPress={() => onChange(null)} />
+        <Chip label="Solo yo" selected={value === null} onPress={() => onChange(null)} />
         {grupos.map((g) => (
           <Chip key={g.id} label={g.nombre} selected={value === g.id} onPress={() => onChange(g.id)} />
         ))}

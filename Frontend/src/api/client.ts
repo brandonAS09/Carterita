@@ -121,6 +121,40 @@ interface Opciones {
   timeoutMs?: number;
 }
 
+interface Crudo {
+  status: number;
+  texto: string;
+}
+
+const enviarConFetch = async (
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body: string | undefined,
+  signal: AbortSignal
+): Promise<Crudo> => {
+  const r = await fetch(url, { method, headers, body, signal });
+  return { status: r.status, texto: r.status === 204 ? '' : await r.text() };
+};
+
+const enviarConXhr = (
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  form: FormData,
+  signal: AbortSignal
+): Promise<Crudo> =>
+  new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    xhr.onload = () => resolve({ status: xhr.status, texto: xhr.responseText ?? '' });
+    xhr.onerror = () => reject(new TypeError('Network request failed'));
+    xhr.onabort = () => reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+    signal.addEventListener('abort', () => xhr.abort());
+    xhr.send(form);
+  });
+
 /** Hace la petición y devuelve el JSON (o null en 204). Lanza siempre ApiError. */
 export const api = async <T>(ruta: string, opciones: Opciones = {}): Promise<T> => {
   const { method = 'GET', body, form, auth = true, timeoutMs } = opciones;
@@ -141,15 +175,15 @@ export const api = async <T>(ruta: string, opciones: Opciones = {}): Promise<T> 
     cambiarLentas(1);
   }, AVISO_LENTO_MS);
 
-  let respuesta: Response;
+  let respuesta: Crudo;
   try {
-    respuesta = await fetch(`${API_URL}/api/v1${ruta}`, {
-      method,
-      headers,
-      body: form ?? (body !== undefined ? JSON.stringify(body) : undefined),
-      signal: controller.signal,
-    });
+    const url = `${API_URL}/api/v1${ruta}`;
+    // Los archivos (foto o audio con `uri`) se suben con XMLHttpRequest: el fetch de Expo no los acepta
+    respuesta = form
+      ? await enviarConXhr(url, method, headers, form, controller.signal)
+      : await enviarConFetch(url, method, headers, body !== undefined ? JSON.stringify(body) : undefined, controller.signal);
   } catch (error: any) {
+    if (__DEV__) console.warn(`La petición ${method} ${ruta} no llegó al servidor:`, error?.message ?? error);
     if (error?.name === 'AbortError') throw new ApiError('TiempoAgotado', MENSAJES.TiempoAgotado);
     throw new ApiError('SinConexion', MENSAJES.SinConexion);
   } finally {
@@ -162,12 +196,12 @@ export const api = async <T>(ruta: string, opciones: Opciones = {}): Promise<T> 
   if (respuesta.status === 204) return null as T;
   let datos: any = null;
   try {
-    datos = await respuesta.json();
+    datos = respuesta.texto ? JSON.parse(respuesta.texto) : null;
   } catch {
     /* respuesta sin JSON (p. ej. página de error del proveedor) */
   }
 
-  if (!respuesta.ok) {
+  if (respuesta.status < 200 || respuesta.status >= 300) {
     const tipo = tipoPorStatus(respuesta.status);
     const error = new ApiError(
       tipo,

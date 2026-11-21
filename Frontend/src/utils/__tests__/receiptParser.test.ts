@@ -291,3 +291,31 @@ describe('isTicketDateUsable (D9)', () => {
     expect(isTicketDateUsable(fecha, HOY, INICIO)).toBe(esperado);
   });
 });
+
+describe('respaldo con el subtotal (OCR del servidor, S7-09)', () => {
+  const linea = (text: string, top: number, left = 36) => ({ text, frame: { left, top, width: 200, height: 30 } });
+
+  test('si el TOTAL se leyó mal, usa SUBTOTAL + IVA', () => {
+    const r = parseReceipt(
+      [
+        linea('OXXO TIENDA 1234', 28),
+        linea('SUBTOTAL', 364), linea('80.00', 364, 353),
+        linea('IVA', 406), linea('9.50', 406, 368),
+        linea('TOTAL', 448), linea('.50', 448, 342),
+        linea('EFECTIVO', 532), linea('100.00', 532, 338),
+      ],
+      '2026-11-20'
+    );
+    expect(r.total).toBe(89.5);
+    expect(r.confianza).toBe('media');
+  });
+
+  test('con un TOTAL legible no cambia nada', () => {
+    const r = parseReceipt(
+      [linea('SUBTOTAL', 364), linea('80.00', 364, 353), linea('TOTAL', 448), linea('92.80', 448, 342)],
+      '2026-11-20'
+    );
+    expect(r.total).toBe(92.8);
+    expect(r.confianza).toBe('alta');
+  });
+});
