@@ -40,3 +40,22 @@ export const formatAmount = (amount: number, moneda: string): string =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+
+/** Monto máximo que acepta el servidor. */
+export const MAX_MONTO = 99_999_999;
+
+/**
+ * Interpreta un monto escrito por el usuario de forma estricta: "1,250.5" → 1250.5.
+ * Devuelve NaN si hay letras, signos o más de 2 decimales ("12abc", "-5", "1.234"),
+ * a diferencia de parseFloat, que aceptaría "12abc" como 12.
+ */
+export const parseAmountInput = (text: string, decimales = 2): number => {
+  const limpio = text.replace(/,/g, '').trim();
+  const formato = new RegExp(`^\\d+(\\.\\d{0,${decimales}})?$|^\\.\\d{1,${decimales}}$`);
+  if (!formato.test(limpio)) return NaN;
+  const valor = Number(limpio);
+  return valor > MAX_MONTO ? NaN : valor;
+};
+
+/** Tipo de cambio (1 USD = X MXN): hasta 4 decimales. */
+export const parseRateInput = (text: string): number => parseAmountInput(text, 4);

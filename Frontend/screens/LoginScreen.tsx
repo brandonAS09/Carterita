@@ -140,6 +140,7 @@ export default function LoginScreen({ navigation }: any) {
                 setNombre(val);
                 if (serverError) setServerError(null);
               }}
+              maxLength={60}
               onBlur={() => handleBlur('nombre')}
               autoCapitalize="words"
               error={touched.nombre && !isNombreValid ? 'El nombre debe tener al menos 2 caracteres.' : null}

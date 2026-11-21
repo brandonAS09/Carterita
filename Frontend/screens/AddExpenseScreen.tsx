@@ -20,6 +20,7 @@ import Button from '../src/components/ui/Button';
 import TextField from '../src/components/ui/TextField';
 import Card from '../src/components/ui/Card';
 import { Banner, FormSection } from '../src/components/ui/Form';
+import { parseAmountInput } from '../src/utils/currencyUtils';
 
 const CATEGORY_SUGGESTION_DELAY_MS = 400;
 
@@ -97,7 +98,7 @@ export default function AddExpenseScreen({ navigation }: any) {
   };
 
   // ── Validaciones (Criterio F02 Escenario 2) ──
-  const parsedMonto = parseFloat(montoText.replace(/,/g, ''));
+  const parsedMonto = parseAmountInput(montoText);
   const isMontoValid = !isNaN(parsedMonto) && parsedMonto > 0;
   const isConceptoValid = concepto.trim().length >= 2;
 

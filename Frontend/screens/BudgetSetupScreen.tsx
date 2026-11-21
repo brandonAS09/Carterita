@@ -29,6 +29,7 @@ import Button from '../src/components/ui/Button';
 import TextField from '../src/components/ui/TextField';
 import { Banner, Chip, FormSection } from '../src/components/ui/Form';
 import { mensajeDeError } from '../src/api/client';
+import { parseAmountInput, parseRateInput } from '../src/utils/currencyUtils';
 
 const CICLOS: { tipo: TipoCiclo; label: string; desc: string }[] = [
   { tipo: 'Diario', label: 'Diario', desc: 'Renovación cada día' },
@@ -39,7 +40,7 @@ const CICLOS: { tipo: TipoCiclo; label: string; desc: string }[] = [
 const SAVE_ERROR = 'Ocurrió un error al guardar tu configuración. Inténtalo de nuevo.';
 const ONBOARDING_STEPS = 2;
 
-const parseNumber = (text: string) => parseFloat(text.replace(/,/g, ''));
+const parseNumber = parseAmountInput;
 const toInputText = (n: number) => round2(n).toString();
 
 /**
@@ -118,7 +119,7 @@ export default function BudgetSetupScreen({ navigation, route }: any) {
   const currencyChanged = original !== null && moneda !== original.moneda;
   const cycleChanged = original !== null && tipoCiclo !== original.tipo_ciclo;
 
-  const parsedTasa = parseNumber(tasaText);
+  const parsedTasa = parseRateInput(tasaText);
   const isTasaValid = !isNaN(parsedTasa) && isFinite(parsedTasa) && parsedTasa > 0;
 
   const parsedMonto = parseNumber(montoText);

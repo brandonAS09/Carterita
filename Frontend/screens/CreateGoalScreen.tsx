@@ -14,6 +14,7 @@ import Button from '../src/components/ui/Button';
 import TextField from '../src/components/ui/TextField';
 import { Banner, Chip, FormSection } from '../src/components/ui/Form';
 import { mensajeDeError } from '../src/api/client';
+import { parseAmountInput } from '../src/utils/currencyUtils';
 
 const PLAZOS: { label: string; days: number | null }[] = [
   { label: 'Sin fecha', days: null },
@@ -60,7 +61,7 @@ export default function CreateGoalScreen({ navigation, route }: any) {
   }, [navigation]);
 
   // Escenario 3: botón deshabilitado si el nombre está vacío o el objetivo es <= 0
-  const objetivo = parseFloat(objetivoText.replace(/,/g, ''));
+  const objetivo = parseAmountInput(objetivoText);
   const isNombreValid = nombre.trim().length > 0;
   const isObjetivoValid = !isNaN(objetivo) && isFinite(objetivo) && objetivo > 0;
   const isFormValid = isNombreValid && isObjetivoValid && userId !== null;

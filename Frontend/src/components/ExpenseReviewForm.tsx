@@ -13,10 +13,11 @@ import Button from './ui/Button';
 import TextField from './ui/TextField';
 import { Banner, FormSection } from './ui/Form';
 import { mensajeDeError } from '../api/client';
+import { parseAmountInput, parseRateInput } from '../utils/currencyUtils';
 
 const MSG_SAVE_ERROR = 'Ocurrió un error al guardar el gasto. Inténtalo de nuevo.';
 
-const parseNumber = (text: string) => parseFloat(text.replace(/,/g, ''));
+const parseNumber = parseAmountInput;
 const toInputText = (n: number) => round2(n).toString();
 
 export interface ExpenseReviewInitial {
@@ -98,7 +99,7 @@ export default function ExpenseReviewForm({
   // D1: moneda distinta a la del presupuesto
   const isForeign = initial.monto !== null && initial.moneda !== monedaPresupuesto;
   const needsRate = isForeign && !budget?.tipo_cambio_usd;
-  const parsedTasa = parseNumber(tasaText);
+  const parsedTasa = parseRateInput(tasaText);
   const isTasaValid = !isNaN(parsedTasa) && isFinite(parsedTasa) && parsedTasa > 0;
   const tasaEfectiva = needsRate ? (isTasaValid ? parsedTasa : null) : budget?.tipo_cambio_usd ?? null;
 

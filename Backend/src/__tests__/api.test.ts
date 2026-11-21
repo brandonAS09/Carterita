@@ -91,6 +91,22 @@ describe('gastos', () => {
     expect(await prisma.transaccion.count({ where: { usuarioId: ana.id, clienteId } })).toBe(1);
   });
 
+  test('un gasto de un día pasado usa el mediodía local que manda el teléfono', async () => {
+    const r = await como(ana).post('/api/v1/gastos', {
+      monto: 20, concepto: 'Pan', categoriaId: comida, fechaKey: '2026-11-18',
+      fecha: '2026-11-18T20:00:00.000Z', clienteId: randomUUID(),
+    });
+    expect(r.body.gasto).toMatchObject({ fecha: '2026-11-18T20:00:00.000Z', fecha_local: '2026-11-18' });
+  });
+
+  test('un concepto de 200 letras se rechaza con un mensaje claro', async () => {
+    const r = await como(ana).post('/api/v1/gastos', {
+      monto: 10, concepto: 'a'.repeat(200), categoriaId: null, fechaKey: HOY, clienteId: randomUUID(),
+    });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatchObject({ campo: 'concepto', mensaje: expect.stringContaining('80') });
+  });
+
   test('fechas futuras y conceptos cortos se rechazan', async () => {
     const futura = await como(ana).post('/api/v1/gastos', {
       monto: 10, concepto: 'Mañana', categoriaId: null, fechaKey: '2026-11-21', clienteId: randomUUID(),

@@ -30,7 +30,7 @@ const monto = z
   .number({ error: 'Ingresa un monto válido.' })
   .positive('Ingresa un monto mayor a 0.')
   .max(99_999_999, 'El monto es demasiado grande.');
-const concepto = z.string().trim().min(2, 'El concepto debe tener al menos 2 caracteres.').max(60, 'El concepto es demasiado largo.');
+const concepto = z.string().trim().min(2, 'El concepto debe tener al menos 2 caracteres.').max(80, 'El concepto es demasiado largo (máximo 80 caracteres).');
 const categoriaId = z.number().int().positive().nullable();
 
 const crearSchema = z.object({
@@ -40,10 +40,18 @@ const crearSchema = z.object({
   origen: z.enum(['Manual', 'Voz', 'OCR']).default('Manual'),
   fechaKey,
   clienteId: z.string().min(8).max(64), // D34
+  /** Instante calculado en el teléfono (mediodía local para días pasados). */
+  fecha: z.iso.datetime({ offset: true }).optional(),
   grupoId: z.number().int().positive().nullable().optional(),
 });
 
-const editarSchema = z.object({ monto, concepto, categoriaId, fechaKey: fechaKey.optional() });
+const editarSchema = z.object({
+  monto,
+  concepto,
+  categoriaId,
+  fechaKey: fechaKey.optional(),
+  fecha: z.iso.datetime({ offset: true }).optional(),
+});
 
 const listarSchema = z.object({
   desde: fechaKey.optional(),
@@ -52,7 +60,12 @@ const listarSchema = z.object({
 });
 
 /** Mediodía UTC del día elegido: el instante siempre cae en ese día para la app. */
-const instanteDe = (key: string, hoy: string) => (key === hoy ? new Date() : new Date(`${key}T12:00:00Z`));
+/**
+ * Instante del gasto: el que manda el teléfono (su mediodía local para días pasados, D30).
+ * Si no lo manda, ahora (hoy) o mediodía UTC (días pasados).
+ */
+const instanteDe = (key: string, hoy: string, enviado?: string) =>
+  enviado ? new Date(enviado) : key === hoy ? new Date() : new Date(`${key}T12:00:00Z`);
 
 const validarCategoria = async (id: number | null) => {
   if (id !== null && !(await prisma.categoria.findUnique({ where: { id } }))) {
@@ -135,7 +148,7 @@ gastosRouter.post('/gastos', async (req, res) => {
       concepto: datos.concepto,
       categoriaId: datos.categoriaId,
       origen: datos.origen,
-      fecha: instanteDe(datos.fechaKey, hoy),
+      fecha: instanteDe(datos.fechaKey, hoy, datos.fecha),
       fechaLocal: deKey(datos.fechaKey),
       clienteId: datos.clienteId,
       grupoId: datos.grupoId ?? null,
@@ -168,7 +181,7 @@ gastosRouter.patch('/gastos/:id', async (req, res) => {
       monto: round2(datos.monto),
       concepto: datos.concepto,
       categoriaId: datos.categoriaId,
-      ...(cambiaFecha && { fecha: new Date(`${datos.fechaKey}T12:00:00Z`), fechaLocal: deKey(datos.fechaKey!) }),
+      ...(cambiaFecha && { fecha: instanteDe(datos.fechaKey!, hoy, datos.fecha), fechaLocal: deKey(datos.fechaKey!) }),
     },
     include: incluir,
   });

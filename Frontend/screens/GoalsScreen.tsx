@@ -41,6 +41,7 @@ import TextField from '../src/components/ui/TextField';
 import { Banner, ProgressBar } from '../src/components/ui/Form';
 import { EmptyState, Skeleton } from '../src/components/ui/States';
 import { mensajeDeError } from '../src/api/client';
+import { parseAmountInput } from '../src/utils/currencyUtils';
 
 interface Celebration {
   title: string;
@@ -419,7 +420,7 @@ export function AbonoDialog({
   const styles = useThemedStyles(createStyles);
   const [montoText, setMontoText] = useState('');
 
-  const monto = parseFloat(montoText.replace(/,/g, ''));
+  const monto = parseAmountInput(montoText);
   const isPositive = !isNaN(monto) && isFinite(monto) && monto > 0;
   const excede = !!goal && isPositive && round2(monto) > goal.restante;
   const isValid = isPositive && !excede;

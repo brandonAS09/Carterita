@@ -1,6 +1,6 @@
 import { api, ApiError, conIdempotencia } from '../api/client';
 import { round2 } from '../utils/currencyUtils';
-import { toLocalDateKey } from '../utils/dateUtils';
+import { getLocalNoonISO, toLocalDateKey } from '../utils/dateUtils';
 
 export interface Categoria {
   id: number;
@@ -91,7 +91,11 @@ export const transactionService = {
     const body = { monto: round2(monto), concepto: concepto.trim(), categoriaId, origen, fechaKey: dia, grupoId };
     const huella = `gasto|${userId}|${JSON.stringify(body)}`;
     return conIdempotencia(huella, async (clienteId) =>
-      (await api<{ gasto: Transaccion }>('/gastos', { method: 'POST', body: { ...body, clienteId } })).gasto
+      // El instante va fuera de la huella: un reintento de "hoy" debe reconocerse como el mismo gasto
+      (await api<{ gasto: Transaccion }>('/gastos', {
+        method: 'POST',
+        body: { ...body, clienteId, fecha: fechaKey ? getLocalNoonISO(fechaKey) : new Date().toISOString() },
+      })).gasto
     );
   },
 
@@ -99,7 +103,12 @@ export const transactionService = {
   updateTransaction: async (_userId: number, id: number, changes: TransactionChanges): Promise<void> => {
     await api(`/gastos/${id}`, {
       method: 'PATCH',
-      body: { ...changes, monto: round2(changes.monto), concepto: changes.concepto.trim() },
+      body: {
+        ...changes,
+        monto: round2(changes.monto),
+        concepto: changes.concepto.trim(),
+        ...(changes.fechaKey && { fecha: getLocalNoonISO(changes.fechaKey) }),
+      },
     });
   },
 
