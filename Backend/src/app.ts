@@ -7,6 +7,7 @@ import { gastosRouter } from './routes/gastos.js';
 import { gruposRouter } from './routes/grupos.js';
 import { metasRouter } from './routes/metas.js';
 import { presupuestoRouter } from './routes/presupuesto.js';
+import { lecturaRouter } from './routes/lectura.js';
 
 export const crearApp = () => {
   const app = express();
@@ -25,7 +26,7 @@ export const crearApp = () => {
   // Todo lo demás requiere sesión
   const api = express.Router();
   api.use(requiereSesion);
-  api.use(presupuestoRouter, gastosRouter, metasRouter, gruposRouter);
+  api.use(presupuestoRouter, gastosRouter, metasRouter, gruposRouter, lecturaRouter);
   app.use('/api/v1', api);
 
   app.use(rutaNoEncontrada);
