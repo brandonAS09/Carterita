@@ -1,50 +1,20 @@
-import { budgetService, Presupuesto } from './budgetService';
-import { transactionService } from './transactionService';
-import { goalService } from './goalService';
-import { calculateSmartBudget, SmartBudgetResult } from '../utils/smartBudgetCalculator';
-import { addDaysToKey, toLocalDateKey } from '../utils/dateUtils';
-import { round2 } from '../utils/currencyUtils';
+import { api, ApiError } from '../api/client';
+import type { Presupuesto } from './budgetService';
+import type { SmartBudgetResult } from '../utils/smartBudgetCalculator';
 
 export interface TodayBudgetSummary extends SmartBudgetResult {
   presupuesto: Presupuesto;
   gastadoHoy: number;
 }
 
-/** F06: orquesta BD + calculador puro para obtener el resumen del día. */
+/** F06: el servidor calcula el resumen del día con la fecha local del teléfono. */
 export const smartBudgetService = {
-  getTodaySummary: async (userId: number): Promise<TodayBudgetSummary | null> => {
-    const presupuesto = await budgetService.ensureCurrentCycle(userId);
-    if (!presupuesto) return null;
-
-    const hoy = toLocalDateKey();
-    const [gastadoAntesDeHoy, gastadoHoy, aportadoEnCiclo] = await Promise.all([
-      // Si hoy es el primer día, el rango queda vacío y el total es 0
-      transactionService.getCycleTotal(userId, presupuesto.fecha_inicio, addDaysToKey(hoy, -1)),
-      transactionService.getTodayTotal(userId),
-      // F07: excedentes movidos a metas cuentan como dinero ya usado del ciclo
-      goalService.getSurplusContributionsBetween(userId, presupuesto.fecha_inicio, presupuesto.fecha_fin),
-    ]);
-
-    const result = calculateSmartBudget({
-      montoBase: presupuesto.monto_base,
-      fechaInicio: presupuesto.fecha_inicio,
-      fechaFin: presupuesto.fecha_fin,
-      hoy,
-      gastadoAntesDeHoy,
-      gastadoHoy,
-      aportadoEnCiclo,
-    });
-
-    // Redondeo a centavos para evitar mostrar "-$0.00" por residuos de punto flotante
-    return {
-      ...result,
-      limiteBase: round2(result.limiteBase),
-      limiteHoy: round2(result.limiteHoy),
-      disponibleHoy: round2(result.disponibleHoy),
-      saldoCiclo: round2(result.saldoCiclo),
-      saldoRestanteCiclo: round2(result.saldoRestanteCiclo),
-      presupuesto,
-      gastadoHoy: round2(gastadoHoy),
-    };
+  getTodaySummary: async (_userId: number): Promise<TodayBudgetSummary | null> => {
+    try {
+      return (await api<{ resumen: TodayBudgetSummary }>('/resumen/hoy')).resumen;
+    } catch (error) {
+      if (error instanceof ApiError && error.tipo === 'NoEncontrado') return null;
+      throw error;
+    }
   },
 };

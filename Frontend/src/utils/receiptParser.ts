@@ -151,6 +151,19 @@ const findTotal = (rows: Row[]): number | null => {
   return best ? (best as { value: number }).value : null;
 };
 
+/**
+ * Respaldo cuando el renglón TOTAL no se pudo leer (p. ej. "$89.50" leído como ".50"):
+ * SUBTOTAL + impuestos desglosados. Solo si el subtotal aparece con su monto.
+ */
+const totalFromSubtotal = (rows: Row[]): number | null => {
+  const subtotal = rows.find((r) => /SUB[ -]?TOTAL/.test(r.label) && r.amounts.length);
+  if (!subtotal) return null;
+  const impuestos = rows
+    .filter((r) => /(^|[^A-Z])[I1L]VA\b|\bIEPS\b/.test(r.label) && !/SUB[ -]?TOTAL/.test(r.label) && r.amounts.length)
+    .reduce((suma, r) => suma + r.amounts[r.amounts.length - 1], 0);
+  return Math.round((subtotal.amounts[subtotal.amounts.length - 1] + impuestos) * 100) / 100;
+};
+
 /** Montos para sugerir: excluye desglose y forma de pago, salvo que no haya otros. */
 const findCandidates = (rows: Row[]): number[] => {
   const usable = rows.filter((r) => !EXCLUDED_ROW.test(r.label)).flatMap((r) => r.amounts);
@@ -269,7 +282,10 @@ export const parseReceipt = (lines: ReceiptLine[], hoy: string): ParsedReceipt =
     return { raw, label: normalizeLabel(withoutAmounts), amounts };
   });
 
-  const total = findTotal(rows);
+  const directo = findTotal(rows);
+  // Un "total" menor a 1 casi siempre es un monto mal leído; se intenta con el subtotal
+  const respaldo = directo === null || directo < 1 ? totalFromSubtotal(rows) : null;
+  const total = respaldo ?? directo;
   const candidatos = findCandidates(rows);
   const comercio = findMerchant(rows);
 
@@ -279,6 +295,6 @@ export const parseReceipt = (lines: ReceiptLine[], hoy: string): ParsedReceipt =
     comercio,
     fecha: findDate(rows, hoy),
     categoria: findCategory(rows, comercio),
-    confianza: total !== null ? 'alta' : candidatos.length ? 'media' : 'baja',
+    confianza: total !== null && respaldo === null ? 'alta' : total !== null || candidatos.length ? 'media' : 'baja',
   };
 };

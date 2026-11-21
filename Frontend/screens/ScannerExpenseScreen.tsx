@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, CameraOff, Images, PenLine, RotateCcw, ScanLine, Settings, type LucideIcon } from 'lucide-react-native';
-import ReceiptOcr from '../modules/receipt-ocr';
+import { readingService } from '../src/services/readingService';
+import { ApiError, mensajeDeError } from '../src/api/client';
 import { useTheme, useThemedStyles } from '../src/theme/ThemeProvider';
 import { RADIUS, SPACING, ThemeColors, TYPOGRAPHY } from '../src/theme/theme';
 import { authService } from '../src/services/authService';
@@ -66,10 +67,7 @@ export default function ScannerExpenseScreen({ navigation }: any) {
 
   useEffect(() => {
     const init = async () => {
-      if (!ReceiptOcr) {
-        setPhase('needs-dev-build');
-        return;
-      }
+      // Sin el módulo nativo (Expo Go, iPhone) la lectura se hace en el servidor (D44)
       try {
         const session = await authService.getActiveSession();
         if (!session) {
@@ -83,8 +81,8 @@ export default function ScannerExpenseScreen({ navigation }: any) {
         ]);
         setBudget(b);
         setCategorias(cats);
-      } catch {
-        setNotice('No se pudieron cargar tus datos. Intenta de nuevo.');
+      } catch (error) {
+        setNotice(mensajeDeError(error, 'No se pudieron cargar tus datos. Intenta de nuevo.'));
       }
       setPhase('choose');
     };
@@ -98,7 +96,7 @@ export default function ScannerExpenseScreen({ navigation }: any) {
     setPhotoUri(uri);
     setPhase('processing');
     try {
-      const { lines } = await ReceiptOcr!.recognizeText(uri);
+      const { lines } = await readingService.recognizeReceipt(uri);
       if (!lines.length) {
         setReceipt(EMPTY_RECEIPT);
         setPhase('no-text'); // Escenario 7
@@ -116,6 +114,8 @@ export default function ScannerExpenseScreen({ navigation }: any) {
     } catch (error) {
       console.error('Error al leer el ticket:', error);
       setReceipt(EMPTY_RECEIPT);
+      // Sin red o con el servicio caído se dice el motivo; la foto se conserva para registrar a mano
+      if (error instanceof ApiError) setNotice(error.message);
       setPhase('no-text');
     }
   };
@@ -158,14 +158,15 @@ export default function ScannerExpenseScreen({ navigation }: any) {
   const ticketDate =
     budget && isTicketDateUsable(receipt.fecha, toLocalDateKey(), budget.fecha_inicio) ? receipt.fecha : null;
 
-  const handleSave = async ({ monto, concepto, categoriaId }: ExpenseReviewValues) => {
+  const handleSave = async ({ monto, concepto, categoriaId, grupoId }: ExpenseReviewValues) => {
     await transactionService.addTransaction(
       userId!,
       monto,
       concepto,
       categoriaId,
       'OCR',
-      useTicketDate && ticketDate ? ticketDate : undefined
+      useTicketDate && ticketDate ? ticketDate : undefined,
+      grupoId
     );
     navigation.goBack(); // el Dashboard se actualiza al recibir foco
   };
@@ -247,7 +248,7 @@ export default function ScannerExpenseScreen({ navigation }: any) {
       case 'no-text':
         return (
           <View style={styles.centerBlock}>
-            <Banner tone="error" message={MSG_NO_TEXT} />
+            <Banner tone="error" message={notice ?? MSG_NO_TEXT} />
             <View style={styles.actions}>
               <Button label="Tomar otra foto" icon={RotateCcw} onPress={takePhoto} />
               <Button label="Continuar sin datos" variant="secondary" onPress={() => setPhase('review')} />
@@ -294,6 +295,7 @@ export default function ScannerExpenseScreen({ navigation }: any) {
               />
             )}
             onSave={handleSave}
+            allowShare
           />
         );
 
@@ -302,7 +304,7 @@ export default function ScannerExpenseScreen({ navigation }: any) {
           ScanLine,
           colors.primary,
           'Escanea tu ticket',
-          'Busca buena luz y recorta la foto para que solo se vea el ticket. La lectura se hace en tu teléfono.',
+          `Busca buena luz y recorta la foto para que solo se vea el ticket. ${readingService.hasNativeOcr() ? 'La lectura se hace en tu teléfono.' : 'La foto se lee en el servidor de Carterita y no se guarda.'}`,
           <>
             <Button label="Tomar foto" icon={Camera} onPress={takePhoto} />
             {galleryButton}

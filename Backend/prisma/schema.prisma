@@ -1,0 +1,182 @@
+// Esquema único de Carterita (D27-D30). Cada cambio genera una migración con `npm run db:migrate`.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TipoCiclo {
+  Diario
+  Semanal
+  Mensual
+}
+
+enum Moneda {
+  MXN
+  USD
+}
+
+enum Origen {
+  Manual
+  Voz
+  OCR
+}
+
+enum TipoAporte {
+  Excedente
+  Abono
+  Retiro
+}
+
+enum RolGrupo {
+  Admin
+  Miembro
+}
+
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  nombre       String
+  zonaHoraria  String   @default("America/Tijuana")
+  creadoEn     DateTime @default(now())
+
+  presupuesto  Presupuesto?
+  gastos       Transaccion[]
+  preferencias PreferenciaCategoria[]
+  membresias   MiembroGrupo[]
+  aportes      AporteMeta[]
+  metas        MetaAhorro[]           @relation("MetaPersonal")
+  metasCreadas MetaAhorro[]           @relation("MetaCreadaPor")
+}
+
+model Presupuesto {
+  id            Int       @id @default(autoincrement())
+  usuarioId     Int       @unique
+  montoBase     Decimal   @db.Decimal(12, 2)
+  tipoCiclo     TipoCiclo
+  moneda        Moneda    @default(MXN)
+  fechaInicio   DateTime  @db.Date
+  fechaFin      DateTime  @db.Date
+  tipoCambioUsd Decimal?  @db.Decimal(10, 4)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+}
+
+model Categoria {
+  id        Int     @id @default(autoincrement())
+  nombre    String  @unique
+  icono     String
+  esDefault Boolean @default(true)
+
+  gastos       Transaccion[]
+  preferencias PreferenciaCategoria[]
+}
+
+model Transaccion {
+  id          Int      @id @default(autoincrement())
+  usuarioId   Int
+  monto       Decimal  @db.Decimal(12, 2)
+  fecha       DateTime
+  fechaLocal  DateTime @db.Date
+  concepto    String
+  categoriaId Int?
+  origen      Origen   @default(Manual)
+  grupoId     Int?
+  clienteId   String
+
+  usuario   Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  categoria Categoria? @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
+  grupo     Grupo?     @relation(fields: [grupoId], references: [id], onDelete: SetNull)
+
+  @@unique([usuarioId, clienteId])
+  @@index([usuarioId, fechaLocal])
+  @@index([grupoId, fechaLocal])
+}
+
+model MetaAhorro {
+  id             Int       @id @default(autoincrement())
+  usuarioId      Int?
+  grupoId        Int?
+  creadaPorId    Int
+  nombre         String
+  montoObjetivo  Decimal   @db.Decimal(12, 2)
+  montoAcumulado Decimal   @default(0) @db.Decimal(12, 2)
+  icono          String?
+  fechaLimite    DateTime? @db.Date
+  creadaEn       DateTime  @default(now())
+
+  usuario   Usuario?     @relation("MetaPersonal", fields: [usuarioId], references: [id], onDelete: Cascade)
+  grupo     Grupo?       @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  creadaPor Usuario      @relation("MetaCreadaPor", fields: [creadaPorId], references: [id], onDelete: Cascade)
+  aportes   AporteMeta[]
+
+  @@index([usuarioId])
+  @@index([grupoId])
+}
+
+model AporteMeta {
+  id          Int        @id @default(autoincrement())
+  metaId      Int
+  usuarioId   Int
+  monto       Decimal    @db.Decimal(12, 2)
+  fecha       DateTime   @default(now())
+  tipo        TipoAporte
+  fechaOrigen DateTime?  @db.Date
+  clienteId   String
+
+  meta    MetaAhorro @relation(fields: [metaId], references: [id], onDelete: Cascade)
+  usuario Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, clienteId])
+  @@index([metaId])
+}
+
+model PreferenciaCategoria {
+  usuarioId     Int
+  clave         String
+  categoriaId   Int
+  usos          Int      @default(1)
+  actualizadoEn DateTime @updatedAt
+
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  categoria Categoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, clave])
+}
+
+model Grupo {
+  id       Int      @id @default(autoincrement())
+  nombre   String
+  creadoEn DateTime @default(now())
+
+  miembros   MiembroGrupo[]
+  metas      MetaAhorro[]
+  gastos     Transaccion[]
+  invitacion InvitacionGrupo?
+}
+
+model MiembroGrupo {
+  grupoId   Int
+  usuarioId Int
+  rol       RolGrupo @default(Miembro)
+  unidoEn   DateTime @default(now())
+
+  grupo   Grupo   @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@id([grupoId, usuarioId])
+  @@index([usuarioId])
+}
+
+model InvitacionGrupo {
+  grupoId  Int      @id
+  codigo   String   @unique
+  expiraEn DateTime
+
+  grupo Grupo @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+}

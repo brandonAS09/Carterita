@@ -17,6 +17,7 @@ import { CountingAmount } from '../src/components/ui/Amount';
 import Button from '../src/components/ui/Button';
 import { EmptyState, ErrorState, Skeleton } from '../src/components/ui/States';
 import { Avatar, Logo, QuickAction, SummaryTile, TransactionRow } from '../src/components/ui/HomeBlocks';
+import { mensajeDeError } from '../src/api/client';
 
 const RECENT_LIMIT = 5;
 const TILE_OVERLAP = -20;
@@ -54,6 +55,7 @@ export default function MenuScreen({ navigation }: any) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loadMessage, setLoadMessage] = useState('');
 
   const hasLoadedOnce = useRef(false);
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -93,6 +95,7 @@ export default function MenuScreen({ navigation }: any) {
       } catch (error) {
         console.error('Error cargando el dashboard:', error);
         setLoadFailed(true);
+        setLoadMessage(mensajeDeError(error, 'No pudimos cargar tu información. Revisa de nuevo en un momento.'));
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -216,7 +219,7 @@ export default function MenuScreen({ navigation }: any) {
 
         {loadFailed && !data ? (
           <ErrorState
-            message="No pudimos cargar tu información. Revisa de nuevo en un momento."
+            message={loadMessage}
             onRetry={() => loadDashboard('initial')}
           />
         ) : (

@@ -40,6 +40,7 @@ import Amount from '../src/components/ui/Amount';
 import TextField from '../src/components/ui/TextField';
 import { Banner, ProgressBar } from '../src/components/ui/Form';
 import { EmptyState, Skeleton } from '../src/components/ui/States';
+import { mensajeDeError } from '../src/api/client';
 
 interface Celebration {
   title: string;
@@ -86,7 +87,7 @@ export default function GoalsScreen({ navigation }: any) {
         setSurplus(yesterday);
       } catch (error) {
         console.error('Error cargando metas:', error);
-        setErrorMessage('No se pudieron cargar tus metas. Desliza hacia abajo para reintentar.');
+        setErrorMessage(`${mensajeDeError(error, 'No se pudieron cargar tus metas.')} Desliza hacia abajo para reintentar.`);
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -161,8 +162,8 @@ export default function GoalsScreen({ navigation }: any) {
     try {
       await goalService.deleteGoal(userId, goal.id);
       await load();
-    } catch {
-      setErrorMessage('No se pudo eliminar la meta. Inténtalo de nuevo.');
+    } catch (error) {
+      setErrorMessage(mensajeDeError(error, 'No se pudo eliminar la meta. Inténtalo de nuevo.'));
     }
   };
 
@@ -402,7 +403,7 @@ export default function GoalsScreen({ navigation }: any) {
 // ─────────────────────────────────────────────
 // Diálogo de abono (Escenario 6)
 // ─────────────────────────────────────────────
-function AbonoDialog({
+export function AbonoDialog({
   goal,
   moneda,
   isSaving,
