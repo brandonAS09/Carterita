@@ -1,3 +1,6 @@
+// Los cálculos de fechas trabajan con días 'YYYY-MM-DD'; el servidor siempre en UTC evita sorpresas.
+process.env.TZ = 'UTC';
+
 import 'dotenv/config';
 import { z } from 'zod';
 

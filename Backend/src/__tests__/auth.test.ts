@@ -79,7 +79,7 @@ describe('cuenta y sesión', () => {
 
   test('health responde y una ruta inexistente da 404 con el formato de error', async () => {
     expect((await request(app).get('/health')).body).toEqual({ ok: true });
-    const nada = await request(app).get('/api/v1/nada');
+    const nada = await request(app).get('/nada');
     expect(nada.status).toBe(404);
     expect(nada.body.error.codigo).toBe('NO_ENCONTRADO');
   });
