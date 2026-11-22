@@ -2,7 +2,8 @@
 
 ## Herramienta y forma de trabajo
 
-- **Herramienta:** Claude Code (asistente de programación de Anthropic) en la terminal, con acceso al proyecto, al emulador de Android por `adb` y a Git.
+- **Primera herramienta (descartada):** al principio del proyecto trabajé con AGY, pero me dejó el código hecho un cochinero: desordenado y difícil de mantener. Por eso cambié de herramienta.
+- **Herramienta actual:** Claude Code (asistente de programación de Anthropic) en la terminal, con acceso al proyecto, al emulador de Android por `adb` y a Git. Todo lo que sigue en esta bitácora se hizo con Claude Code.
 - **Rol que le di:** programador senior y Scrum Master. Yo hago de dueño del producto: decido qué se construye y valido el resultado.
 - **Ciclo de cada sprint:**
   1. Le pido una función en mis palabras.
@@ -90,6 +91,7 @@
 
 ## Lo que aprendí sobre trabajar con IA
 
+- **La herramienta importa.** Con AGY el código quedó desordenado y tuve que cambiar. Con Claude Code, pedir una especificación antes de programar y un commit por función me permitió revisar cada paso.
 - **Pedir que proponga decisiones antes de programar** me dejó entender y controlar el proyecto. Las decisiones donde no estuve de acuerdo (diseño, iPhone, salida de grupos) cambiaron el resultado.
 - **No confiar en "ya funciona" sin probar en el dispositivo.** Dos de los errores más importantes (subir fotos en Expo Go y el ticket mal leído) solo aparecieron al usar la app, no en las pruebas automáticas.
 - **Las pruebas automáticas sí atraparon errores que yo no habría visto**, como el contraste del chip y la expresión regular dañada.
