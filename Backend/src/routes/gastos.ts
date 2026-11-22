@@ -41,7 +41,7 @@ const crearSchema = z.object({
   fechaKey,
   clienteId: z.string().min(8).max(64), // D34
   /** Instante calculado en el teléfono (mediodía local para días pasados). */
-  fecha: z.iso.datetime({ offset: true }).optional(),
+  fecha: z.iso.datetime({ offset: true, error: 'Fecha inválida.' }).optional(),
   grupoId: z.number().int().positive().nullable().optional(),
 });
 
@@ -50,7 +50,7 @@ const editarSchema = z.object({
   concepto,
   categoriaId,
   fechaKey: fechaKey.optional(),
-  fecha: z.iso.datetime({ offset: true }).optional(),
+  fecha: z.iso.datetime({ offset: true, error: 'Fecha inválida.' }).optional(),
 });
 
 const listarSchema = z.object({
