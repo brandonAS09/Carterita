@@ -273,6 +273,7 @@ export default function BudgetSetupScreen({ navigation, route }: any) {
             prefix="1 USD ="
             suffix="MXN"
             placeholder="0.00"
+            maxLength={10}
             keyboardType="decimal-pad"
             value={tasaText}
             onChangeText={(val) => {

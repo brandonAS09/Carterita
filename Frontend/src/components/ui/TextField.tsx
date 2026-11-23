@@ -48,6 +48,8 @@ export default function TextField({
         {prefix && <Text style={[valueStyle, styles.affix]}>{prefix}</Text>}
         <TextInput
           {...inputProps}
+          // Un monto nunca necesita más de "99,999,999.99": evita textos enormes en el campo
+          maxLength={inputProps.maxLength ?? (amount ? 14 : undefined)}
           accessibilityLabel={inputProps.accessibilityLabel ?? label}
           placeholderTextColor={colors.textSecondary}
           selectionColor={colors.primary}

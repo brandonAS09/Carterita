@@ -163,6 +163,7 @@ export default function ExpenseReviewForm({
               prefix="1 USD ="
               suffix="MXN"
               placeholder="0.00"
+              maxLength={10}
               keyboardType="decimal-pad"
               value={tasaText}
               onChangeText={setTasaText}
