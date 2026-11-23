@@ -107,6 +107,25 @@ describe('gastos', () => {
     expect(r.body.error).toMatchObject({ campo: 'concepto', mensaje: expect.stringContaining('80') });
   });
 
+  test('doble toque: dos envíos simultáneos con el mismo clienteId guardan uno y ambos responden bien', async () => {
+    const body = { monto: 33, concepto: 'Doble toque', categoriaId: null, fechaKey: HOY, clienteId: randomUUID() };
+    const [a, b] = await Promise.all([como(ana).post('/api/v1/gastos', body), como(ana).post('/api/v1/gastos', body)]);
+    expect([a.status, b.status].sort()).toEqual([200, 201]);
+    expect(a.body.gasto.id).toBe(b.body.gasto.id);
+    expect(await prisma.transaccion.count({ where: { usuarioId: ana.id, clienteId: body.clienteId } })).toBe(1);
+  });
+
+  test('doble toque en un abono: se registra uno y ninguno marca error', async () => {
+    const meta = (await como(ana).post('/api/v1/metas', { nombre: 'Doble', montoObjetivo: 1000 })).body.meta;
+    const body = { monto: 50, tipo: 'Abono', clienteId: randomUUID() };
+    const [a, b] = await Promise.all([
+      como(ana).post(`/api/v1/metas/${meta.id}/aportes`, body),
+      como(ana).post(`/api/v1/metas/${meta.id}/aportes`, body),
+    ]);
+    expect([a.status, b.status].every((s) => s === 200 || s === 201)).toBe(true);
+    expect((await prisma.metaAhorro.findUniqueOrThrow({ where: { id: meta.id } })).montoAcumulado.toNumber()).toBe(50);
+  });
+
   test('fechas futuras y conceptos cortos se rechazan', async () => {
     const futura = await como(ana).post('/api/v1/gastos', {
       monto: 10, concepto: 'Mañana', categoriaId: null, fechaKey: '2026-11-21', clienteId: randomUUID(),

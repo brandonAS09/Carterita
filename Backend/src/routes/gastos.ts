@@ -141,20 +141,34 @@ gastosRouter.post('/gastos', async (req, res) => {
   await validarCategoria(datos.categoriaId);
   await validarGrupo(usuarioId, datos.grupoId);
 
-  const gasto = await prisma.transaccion.create({
-    data: {
-      usuarioId,
-      monto: round2(datos.monto),
-      concepto: datos.concepto,
-      categoriaId: datos.categoriaId,
-      origen: datos.origen,
-      fecha: instanteDe(datos.fechaKey, hoy, datos.fecha),
-      fechaLocal: deKey(datos.fechaKey),
-      clienteId: datos.clienteId,
-      grupoId: datos.grupoId ?? null,
-    },
-    include: incluir,
-  });
+  let gasto: GastoConCategoria;
+  try {
+    gasto = await prisma.transaccion.create({
+      data: {
+        usuarioId,
+        monto: round2(datos.monto),
+        concepto: datos.concepto,
+        categoriaId: datos.categoriaId,
+        origen: datos.origen,
+        fecha: instanteDe(datos.fechaKey, hoy, datos.fecha),
+        fechaLocal: deKey(datos.fechaKey),
+        clienteId: datos.clienteId,
+        grupoId: datos.grupoId ?? null,
+      },
+      include: incluir,
+    });
+  } catch (error) {
+    // Doble toque: dos envíos simultáneos con el mismo clienteId. El primero lo guardó; este regresa el mismo
+    const mismo = await prisma.transaccion.findUnique({
+      where: { usuarioId_clienteId: { usuarioId, clienteId: datos.clienteId } },
+      include: incluir,
+    });
+    if (mismo) {
+      res.status(200).json({ gasto: gastoPublico(mismo) });
+      return;
+    }
+    throw error;
+  }
   await recordarCategoria(usuarioId, datos.concepto, datos.categoriaId);
   res.status(201).json({ gasto: gastoPublico(gasto) });
 });

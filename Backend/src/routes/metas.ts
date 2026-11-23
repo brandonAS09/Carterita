@@ -142,6 +142,15 @@ metasRouter.post('/metas/:id/aportes', async (req, res) => {
     res.status(201).json({ aportado, completada: meta.completada, meta });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      // Doble toque: el mismo aporte llegó dos veces al mismo tiempo; se regresa el que se guardó
+      const mismo = await prisma.aporteMeta.findUnique({
+        where: { usuarioId_clienteId: { usuarioId, clienteId: datos.clienteId } },
+      });
+      if (mismo) {
+        const vista = metaPublica((await buscarMeta(metaId, usuarioId))!);
+        res.json({ aportado: Number(mismo.monto), completada: vista.completada, meta: vista });
+        return;
+      }
       throw new ApiError(409, 'EXCEDENTE_MOVIDO', 'El excedente de ese día ya fue movido a una meta.');
     }
     throw error;
