@@ -82,6 +82,12 @@
   4. **Expresión regular dañada:** un comando de la terminal escribió caracteres de control en lugar de `\b` dentro de una expresión regular. **Una prueba automática lo detectó** (esperaba 89.5 y obtuvo 80) y se corrigió.
   5. **Llaves en `.env.example`:** durante la configuración, las llaves de OCR.space y Groq quedaron un momento en la plantilla `.env.example`, que sí se sube a Git. Se detectó, se quitaron y se revisó todo el historial de Git: nunca se subieron, así que no hubo que generar llaves nuevas.
   6. **Chip cortado:** "Solo para mí" se partía en dos líneas en Android; se cambió a "Solo yo".
+  7. **Casos límite de la rúbrica (22 de noviembre):** le pregunté a la IA si habían pasado todos.
+     - **Contestó con honestidad:** varios solo estaban cubiertos con pruebas automáticas, no probados a mano.
+     - **"Tocar guardar dos veces" no estaba resuelto del todo.** Si los dos envíos llegaban al mismo tiempo, el gasto se guardaba una vez, pero el segundo respondía "error del servidor". Se corrigió y se agregó una prueba que manda los dos envíos simultáneos.
+     - **"12abc" se guardaba como 12** porque se usaba `parseFloat`. Se cambió por una validación estricta.
+     - **En el APK**, el campo de monto aceptaba 200 caracteres. Se limitó a 14.
+     - Después se probaron en el APK: girar el celular, negar el permiso de cámara y escribir 200 letras.
 - **Cómo verifiqué:**
   - 56 pruebas del servidor contra la base de desarrollo, incluidas pruebas de acceso a datos ajenos (2 de ellas usan OCR.space y Groq reales).
   - 283 pruebas de la app.
